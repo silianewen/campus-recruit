@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { Page } from '../components/Page'
 import { supabase } from '../lib/supabase'
 import { POSITION_MAP } from '../lib/positions'
+import { COMPANY_MAP, companyColor } from '../lib/companies'
 import type { NotificationRow, SubmissionStatus } from '../lib/types'
 import { SUBMISSION_STATUS_LABEL } from '../lib/types'
 
 interface SubmissionView {
   id: string
   position_id: keyof typeof POSITION_MAP
+  company_id: string | null
   status: SubmissionStatus
   created_at: string
   updated_at: string
@@ -57,7 +59,7 @@ export default function Status() {
       const [subs, notifs, pers, sk] = await Promise.all([
         supabase
           .from('submissions')
-          .select(`id, position_id, status, created_at, updated_at,
+          .select(`id, position_id, status, created_at, updated_at, company_id,
                    resume:resumes ( student_name, major, university, file_url )`)
           .eq('resumes.phone', p)
           .order('created_at', { ascending: false }),
@@ -85,6 +87,7 @@ export default function Status() {
       // Normalize resumes array→object
       setSubmissions(((subs.data ?? []) as any[]).map((d) => ({
         ...d,
+        company_id: d.company_id ?? null,
         resume: Array.isArray(d.resume) ? d.resume[0] ?? null : d.resume ?? null,
       })))
       setNotifications((notifs.data ?? []) as NotificationRow[])
@@ -131,10 +134,18 @@ export default function Status() {
           </Section>
 
           <Section title="📄 我的投递" empty={submissions.length === 0 ? '暂无投递记录' : ''}>
-            {submissions.map((s) => (
+            {submissions.map((s) => {
+              const companyName = s.company_id ? COMPANY_MAP[s.company_id]?.name ?? s.company_id : null
+              return (
               <div key={s.id} className="border-b border-slate-100 last:border-0 py-3">
                 <div className="flex justify-between items-start">
                   <div className="font-medium text-slate-900">
+                    {companyName && (
+                      <span className="inline-flex items-center mr-2">
+                        <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${companyColor(s.company_id!)}`} />
+                        {companyName}
+                      </span>
+                    )}
                     {POSITION_MAP[s.position_id]?.title ?? s.position_id}
                   </div>
                   <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full">
@@ -154,7 +165,8 @@ export default function Status() {
                   </a>
                 )}
               </div>
-            ))}
+              )
+            })}
           </Section>
 
           <Section title="🧠 性格测评" empty={personality.length === 0 ? '尚未完成性格测评' : ''}>

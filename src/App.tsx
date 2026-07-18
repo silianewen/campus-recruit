@@ -27,7 +27,10 @@ export default function App() {
       <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/upload/:positionId?" element={<Upload />} />
+          {/* /upload now uses ?company=&position= query params (set via Home page). */}
+          <Route path="/upload" element={<Upload />} />
+          {/* Old URL shape kept as defensive fallback — shows "go to home" message. */}
+          <Route path="/upload/:positionId" element={<Upload />} />
           <Route path="/success/:submissionId" element={<Success />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/stats" element={<Stats />} />

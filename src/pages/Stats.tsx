@@ -3,6 +3,7 @@ import { Page } from '../components/Page'
 import { EChart } from '../components/EChart'
 import { supabase } from '../lib/supabase'
 import { POSITIONS, POSITION_MAP } from '../lib/positions'
+import { COMPANIES, COMPANY_MAP } from '../lib/companies'
 
 const HR_SESSION_KEY = 'hr_authed'
 const HR_PASSWORD = import.meta.env.VITE_HR_PASSWORD as string | undefined
@@ -10,6 +11,7 @@ const HR_PASSWORD = import.meta.env.VITE_HR_PASSWORD as string | undefined
 interface Row {
   position_id: keyof typeof POSITION_MAP
   status: string
+  company_id: string | null
   resume: { major: string } | null
 }
 
@@ -19,6 +21,7 @@ export default function Stats() {
   const [pwdError, setPwdError] = useState<string | null>(null)
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(false)
+  const [filterCompany, setFilterCompany] = useState<string>('all')
 
   const tryLogin = (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,11 +41,12 @@ export default function Stats() {
     void (async () => {
       const { data, error } = await supabase
         .from('submissions')
-        .select('position_id, status, resume:resumes ( major )')
+        .select('position_id, status, company_id, resume:resumes ( major )')
       if (error) { alert('加载失败：' + error.message); setLoading(false); return }
       const normalized = ((data ?? []) as any[]).map((d) => ({
         position_id: d.position_id,
         status: d.status,
+        company_id: d.company_id,
         resume: Array.isArray(d.resume) ? d.resume[0] ?? null : d.resume ?? null,
       })) as Row[]
       setRows(normalized)
@@ -50,14 +54,30 @@ export default function Stats() {
     })()
   }, [authed])
 
+  const filteredRows = useMemo(
+    () => rows.filter((r) => filterCompany === 'all' || r.company_id === filterCompany),
+    [rows, filterCompany]
+  )
+
   // Aggregate: submissions per position
   const positionCounts = useMemo(() => {
     const counts: Record<string, number> = { frontend: 0, backend: 0, data: 0, product: 0 }
-    for (const r of rows) counts[r.position_id] = (counts[r.position_id] ?? 0) + 1
+    for (const r of filteredRows) counts[r.position_id] = (counts[r.position_id] ?? 0) + 1
     return counts
-  }, [rows])
+  }, [filteredRows])
 
-  // Aggregate: top 10 majors
+  // Aggregate: submissions per company per position (for stacked-bar chart)
+  const companyPositionCounts = useMemo(() => {
+    const out: Record<string, Record<string, number>> = {}
+    for (const r of filteredRows) {
+      const cid = r.company_id ?? '__none__'
+      if (!out[cid]) out[cid] = { frontend: 0, backend: 0, data: 0, product: 0 }
+      out[cid][r.position_id] = (out[cid][r.position_id] ?? 0) + 1
+    }
+    return out
+  }, [filteredRows])
+
+  // Aggregate: top 10 majors (always global, not company-filtered)
   const majorCounts = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const r of rows) {
@@ -88,7 +108,7 @@ export default function Stats() {
   }), [positionCounts])
 
   const pieOption = useMemo(() => ({
-    title: { text: '专业分布 (Top 10)', left: 'center', textStyle: { fontSize: 14 } },
+    title: { text: '专业分布 (Top 10 · 全局)', left: 'center', textStyle: { fontSize: 14 } },
     tooltip: { trigger: 'item' as const, formatter: '{b}: {c} ({d}%)' },
     legend: { bottom: 0, type: 'scroll' as const },
     series: [{
@@ -98,6 +118,32 @@ export default function Stats() {
       data: majorCounts.map(([name, value]) => ({ name, value })),
     }],
   }), [majorCounts])
+
+  const stackedOption = useMemo(() => {
+    const companiesList = filterCompany === 'all'
+      ? Object.keys(companyPositionCounts)
+      : [filterCompany]
+    return {
+      title: { text: '各公司各岗位投递分布', left: 'center', textStyle: { fontSize: 14 } },
+      tooltip: { trigger: 'axis' as const, axisPointer: { type: 'shadow' as const } },
+      legend: { bottom: 0, type: 'scroll' as const },
+      grid: { left: 50, right: 30, top: 50, bottom: 60 },
+      xAxis: {
+        type: 'category' as const,
+        data: companiesList.map((cid) =>
+          cid === '__none__' ? '(未分配)' : COMPANY_MAP[cid]?.name ?? cid
+        ),
+      },
+      yAxis: { type: 'value' as const, minInterval: 1 },
+      series: POSITIONS.map((p) => ({
+        name: p.title,
+        type: 'bar' as const,
+        stack: 'count',
+        data: companiesList.map((cid) => companyPositionCounts[cid]?.[p.id] ?? 0),
+        itemStyle: { color: p.color.replace('bg-', '') },
+      })),
+    }
+  }, [companyPositionCounts, filterCompany])
 
   if (!authed) {
     return (
@@ -124,10 +170,19 @@ export default function Stats() {
 
   return (
     <Page title="数据看板">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <select value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}
+          className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+          <option value="all">全部公司</option>
+          {COMPANIES.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+        <span className="text-xs text-slate-400">（公司筛选影响下方两张图，专业分布始终是全局数据）</span>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Stat label="总投递数" value={rows.length} />
-        <Stat label="已约面" value={rows.filter(r => r.status === 'interview_scheduled').length} />
-        <Stat label="已 offer" value={rows.filter(r => r.status === 'offered').length} />
+        <Stat label="总投递数" value={filteredRows.length} />
+        <Stat label="已约面" value={filteredRows.filter(r => r.status === 'interview_scheduled').length} />
+        <Stat label="已 offer" value={filteredRows.filter(r => r.status === 'offered').length} />
         <Stat label="活跃岗位" value={POSITIONS.length} />
       </div>
 
@@ -140,12 +195,17 @@ export default function Stats() {
       )}
 
       {!loading && rows.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6">
           <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <EChart option={barOption} />
+            <EChart option={stackedOption} height={360} />
           </div>
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <EChart option={pieOption} height={400} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <EChart option={barOption} />
+            </div>
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+              <EChart option={pieOption} height={400} />
+            </div>
           </div>
         </div>
       )}

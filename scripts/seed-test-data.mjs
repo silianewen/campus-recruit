@@ -115,12 +115,50 @@ function randTimestamp(daysBack = 7) {
 // Main
 // =========================================================================
 async function main() {
-  // Idempotency guard: bail if any submissions already exist
+  // Fetch companies from DB (if any). Empty array if table has no rows yet.
+  const { data: companyRows, error: compErr } = await supabase
+    .from('companies')
+    .select('id')
+  if (compErr) throw compErr
+  const companyIds = (companyRows ?? []).map((c) => c.id)
+  if (companyIds.length > 0) {
+    console.log(`✓ Found ${companyIds.length} companies; will assign them to new + existing rows.`)
+  } else {
+    console.log('ℹ No companies in DB yet — new submissions will have company_id = NULL.')
+  }
+
+  // Idempotency guard: if submissions already exist, do ONLY a company_id
+  // backfill pass and exit (the user opted to migrate old records to random
+  // companies rather than wipe them).
   const { count: existing } = await supabase
     .from('submissions')
     .select('*', { count: 'exact', head: true })
   if (existing && existing > 0) {
-    console.log(`✓ Skipped: ${existing} submissions already exist. Delete them in Supabase Table Editor to re-seed.`)
+    if (companyIds.length === 0) {
+      console.log(`✓ Skipped: ${existing} submissions already exist; no companies in DB to backfill with.`)
+      process.exit(0)
+    }
+    console.log(`→ Backfilling company_id on existing rows…`)
+    const { data: oldResumes, error: rErr } = await supabase
+      .from('resumes')
+      .select('id, company_id')
+      .is('company_id', null)
+    if (rErr) throw rErr
+    let rUpdated = 0
+    for (const r of (oldResumes ?? [])) {
+      const cid = pick(companyIds)
+      const { error: u1 } = await supabase.from('resumes').update({ company_id: cid }).eq('id', r.id)
+      if (u1) { console.warn('resume update failed:', u1.message); continue }
+      const { error: u2 } = await supabase
+        .from('submissions')
+        .update({ company_id: cid })
+        .eq('resume_id', r.id)
+        .is('company_id', null)
+      if (u2) { console.warn('submission update failed:', u2.message); continue }
+      rUpdated++
+    }
+    console.log(`✓ Backfilled ${rUpdated} existing resume/submission pairs to random companies.`)
+    console.log(`  (Total submissions: ${existing}, untouched) `)
     process.exit(0)
   }
 
@@ -134,6 +172,7 @@ async function main() {
     const position = pickWeighted(POSITION_DISTRIBUTION).id
     const status = pickWeighted(STATUS_DISTRIBUTION).id
     const createdAt = randTimestamp(7)
+    const companyId = companyIds.length > 0 ? pick(companyIds) : null
 
     const resume = {
       student_name: randName(),
@@ -142,8 +181,7 @@ async function main() {
       major,
       university: pick(UNIVERSITY_POOL),
       position_id: position,
-      // Placeholder file URL — real upload skipped for stress-test speed.
-      // 下载 link in HR dashboard will 404, that's fine for demo.
+      company_id: companyId,
       file_url: `https://placeholder.example.com/resume-${i + 1}.pdf`,
       file_name: `${randName()}_简历.pdf`,
       file_size: randInt(80_000, 2_000_000),
@@ -156,7 +194,7 @@ async function main() {
   const { data: insertedResumes, error: resumeErr } = await supabase
     .from('resumes')
     .insert(resumes)
-    .select('id, position_id, created_at')
+    .select('id, position_id, company_id, created_at')
   if (resumeErr) throw resumeErr
 
   // Build submissions with matching status distribution
@@ -165,7 +203,8 @@ async function main() {
     submissions.push({
       resume_id: r.id,
       position_id: r.position_id,
-      channel: `qr-${r.position_id}`,
+      company_id: r.company_id,
+      channel: 'qr-homepage',
       status,
       created_at: r.created_at,
       updated_at: r.created_at,

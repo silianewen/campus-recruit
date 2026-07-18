@@ -8,6 +8,17 @@ export interface Position {
   description: string
 }
 
+// CompanyId is set by user-provided data in src/lib/companies.ts.
+// We type it as `string` for now so the registry stays the source of truth.
+export type CompanyId = string
+
+export interface Company {
+  id: CompanyId
+  name: string
+  description?: string
+  logo_url?: string
+}
+
 export type SubmissionStatus =
   | 'submitted'
   | 'reviewed'
@@ -33,6 +44,7 @@ export interface Resume {
   major: string
   university: string
   position_id: PositionId
+  company_id: string | null
   file_url: string
   file_name: string
   file_size: number
@@ -43,6 +55,7 @@ export interface Submission {
   id: string
   resume_id: string
   position_id: PositionId
+  company_id: string | null
   channel: string
   status: SubmissionStatus
   notes: string | null

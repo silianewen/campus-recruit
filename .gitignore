@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+.vercel
+
+# Local PowerShell script that holds Supabase + HR credentials.
+# Only this exact file at repo root is ignored; scripts/set-env*.ps1 helpers stay tracked.
+/campus_recruit.ps1

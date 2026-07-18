@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { supabase } from '../lib/supabase'
 import { POSITION_MAP, isPositionId } from '../lib/positions'
+import { COMPANY_MAP, isCompanyId } from '../lib/companies'
 import type { Submission } from '../lib/types'
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10 MB
@@ -13,8 +14,12 @@ const ACCEPTED_TYPES = [
 ]
 
 export default function Upload() {
-  const { positionId: positionParam } = useParams()
-  const positionId = isPositionId(positionParam) ? positionParam : null
+  const [searchParams] = useSearchParams()
+  const companyParam = searchParams.get('company')
+  const positionParam = searchParams.get('position')
+
+  const companyId = companyParam && isCompanyId(companyParam) ? companyParam : null
+  const positionId = positionParam && isPositionId(positionParam) ? positionParam : null
   const navigate = useNavigate()
 
   const [name, setName] = useState('')
@@ -26,6 +31,7 @@ export default function Upload() {
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const company = companyId ? COMPANY_MAP[companyId] : null
   const pos = positionId ? POSITION_MAP[positionId] : null
 
   const handleFile = (f: File | null) => {
@@ -47,7 +53,8 @@ export default function Upload() {
     setError(null)
 
     if (!supabase) { setError('Supabase 未配置'); return }
-    if (!positionId) { setError('岗位参数缺失'); return }
+    if (!companyId) { setError('请从首页选择公司后再投递'); return }
+    if (!positionId) { setError('请从首页选择岗位后再投递'); return }
     if (!name.trim() || !phone.trim() || !major.trim() || !university.trim()) {
       setError('请填写所有必填项'); return
     }
@@ -58,16 +65,18 @@ export default function Upload() {
 
     setSubmitting(true)
     try {
-      // 1. Duplicate check (phone + position already submitted?)
+      // 1. Duplicate check — same phone + same company + same position blocked.
+      //    (Same phone can apply to same role at different companies.)
       const { data: existing, error: dupErr } = await supabase
         .from('resumes')
-        .select('id, submissions!inner(position_id, status)')
+        .select('id, submissions!inner(position_id, company_id, status)')
         .eq('phone', phone.trim())
+        .eq('company_id', companyId)
         .eq('submissions.position_id', positionId)
         .limit(1)
       if (dupErr) throw dupErr
       if (existing && existing.length > 0) {
-        throw new Error('该手机号已投递过此岗位，请勿重复提交')
+        throw new Error('同一公司同一岗位不可重复投递，请勿重复提交')
       }
 
       // 2. Upload file to Storage
@@ -89,6 +98,7 @@ export default function Upload() {
           phone: phone.trim(),
           major: major.trim(),
           university: university.trim(),
+          company_id: companyId,
           position_id: positionId,
           file_url: fileUrl,
           file_name: file.name,
@@ -103,8 +113,9 @@ export default function Upload() {
         .from('submissions')
         .insert({
           resume_id: resumeRow.id,
+          company_id: companyId,
           position_id: positionId,
-          channel: `qr-${positionId}`,
+          channel: 'qr-homepage',
           status: 'submitted',
         })
         .select('id')
@@ -120,12 +131,13 @@ export default function Upload() {
     }
   }
 
-  if (!positionId) {
+  if (!companyId || !positionId) {
     return (
       <Page title="扫码投递">
         <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-600">
-          <p className="mb-4">请通过岗位卡片或二维码进入。</p>
-          <a href="/" className="text-blue-600 hover:underline">← 返回首页选择岗位</a>
+          <p className="mb-4">缺少公司或岗位参数。</p>
+          <p className="text-sm text-slate-500 mb-4">请通过首页选择公司和岗位后再投递。</p>
+          <a href="/" className="text-blue-600 hover:underline">← 返回首页选择</a>
         </div>
       </Page>
     )
@@ -134,7 +146,7 @@ export default function Upload() {
   return (
     <Page
       title={`投递：${pos?.title ?? positionId}`}
-      subtitle="用 30 秒完成投递。HR 会在 3 个工作日内查看。"
+      subtitle={`公司：${company?.name ?? companyId} · 岗位：${pos?.title ?? positionId}`}
     >
       <div className="bg-white rounded-xl border border-slate-200 p-6 max-w-xl mx-auto">
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -187,6 +199,9 @@ export default function Upload() {
           >
             {submitting ? '提交中…' : '提交投递'}
           </button>
+          <p className="text-xs text-slate-400 text-center">
+            公司：<code>{companyId}</code> · 岗位：<code>{positionId}</code> · 用于本次投递
+          </p>
         </form>
       </div>
     </Page>

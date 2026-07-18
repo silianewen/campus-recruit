@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { Page } from '../components/Page'
 import { supabase } from '../lib/supabase'
 import { POSITIONS, POSITION_MAP } from '../lib/positions'
+import { COMPANIES, COMPANY_MAP, companyColor } from '../lib/companies'
 import type { SubmissionStatus } from '../lib/types'
 import { SUBMISSION_STATUS_LABEL } from '../lib/types'
 
@@ -20,6 +21,7 @@ interface SubmissionRow {
   updated_at: string
   resume_id: string
   position_id: keyof typeof POSITION_MAP
+  company_id: string | null
   resume: {
     id: string
     student_name: string
@@ -39,6 +41,7 @@ export default function Dashboard() {
   const [rows, setRows] = useState<SubmissionRow[]>([])
   const [loading, setLoading] = useState(false)
   const [filterPos, setFilterPos] = useState<string>('all')
+  const [filterCompany, setFilterCompany] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [search, setSearch] = useState('')
 
@@ -76,7 +79,7 @@ export default function Dashboard() {
     const { data, error } = await supabase
       .from('submissions')
       .select(`
-        id, status, channel, notes, created_at, updated_at, resume_id, position_id,
+        id, status, channel, notes, created_at, updated_at, resume_id, position_id, company_id,
         resume:resumes ( id, student_name, phone, major, university, file_url, file_name )
       `)
       .order('created_at', { ascending: false })
@@ -85,7 +88,6 @@ export default function Dashboard() {
       console.error(error)
       alert('加载失败：' + error.message)
     } else {
-      // Cast to our typed shape; Supabase returns resume as object or array depending on version
       const normalized = (data ?? []).map((d) => ({
         ...d,
         resume: Array.isArray(d.resume) ? d.resume[0] ?? null : d.resume ?? null,
@@ -101,6 +103,7 @@ export default function Dashboard() {
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
+      if (filterCompany !== 'all' && r.company_id !== filterCompany) return false
       if (filterPos !== 'all' && r.position_id !== filterPos) return false
       if (filterStatus !== 'all' && r.status !== filterStatus) return false
       if (search) {
@@ -113,7 +116,7 @@ export default function Dashboard() {
       }
       return true
     })
-  }, [rows, filterPos, filterStatus, search])
+  }, [rows, filterCompany, filterPos, filterStatus, search])
 
   const updateStatus = async (id: string, status: SubmissionStatus) => {
     if (!supabase) return
@@ -125,7 +128,9 @@ export default function Dashboard() {
   const openNotifModal = (row: SubmissionRow) => {
     setNotifTarget(row)
     setNotifTitle('面试通知')
-    setNotifContent(`同学你好，你投递的 ${POSITION_MAP[row.position_id]?.title ?? row.position_id} 岗位已进入面试环节，请回复本消息确认可面试时间。`)
+    const companyName = row.company_id ? COMPANY_MAP[row.company_id]?.name ?? row.company_id : ''
+    const posName = POSITION_MAP[row.position_id]?.title ?? row.position_id
+    setNotifContent(`同学你好，你投递的 ${companyName ? companyName + ' · ' : ''}${posName} 岗位已进入面试环节，请回复本消息确认可面试时间。`)
     setNotifResult(null)
   }
 
@@ -181,6 +186,11 @@ export default function Dashboard() {
   return (
     <Page title="HR 招聘官后台">
       <div className="mb-4 flex flex-wrap items-center gap-3">
+        <select value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}
+          className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+          <option value="all">全部公司</option>
+          {COMPANIES.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
         <select value={filterPos} onChange={(e) => setFilterPos(e.target.value)}
           className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
           <option value="all">全部岗位</option>
@@ -210,6 +220,7 @@ export default function Dashboard() {
             <tr>
               <th className="px-3 py-2">姓名</th>
               <th className="px-3 py-2">手机</th>
+              <th className="px-3 py-2">公司</th>
               <th className="px-3 py-2">岗位</th>
               <th className="px-3 py-2">专业</th>
               <th className="px-3 py-2">状态</th>
@@ -219,7 +230,7 @@ export default function Dashboard() {
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={7} className="px-3 py-8 text-center text-slate-400">
+              <tr><td colSpan={8} className="px-3 py-8 text-center text-slate-400">
                 {loading ? '加载中…' : '暂无数据'}
               </td></tr>
             )}
@@ -227,6 +238,14 @@ export default function Dashboard() {
               <tr key={r.id} className="border-t border-slate-100 hover:bg-slate-50">
                 <td className="px-3 py-2 font-medium text-slate-900">{r.resume?.student_name ?? '—'}</td>
                 <td className="px-3 py-2 font-mono text-xs">{r.resume?.phone ?? '—'}</td>
+                <td className="px-3 py-2">
+                  {r.company_id ? (
+                    <span>
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${companyColor(r.company_id)}`} />
+                      {COMPANY_MAP[r.company_id]?.name ?? r.company_id}
+                    </span>
+                  ) : <span className="text-slate-300">—</span>}
+                </td>
                 <td className="px-3 py-2">
                   <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${POSITION_MAP[r.position_id]?.color ?? 'bg-slate-300'}`} />
                   {POSITION_MAP[r.position_id]?.title ?? r.position_id}
