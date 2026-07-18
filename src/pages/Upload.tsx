@@ -122,7 +122,7 @@ export default function Upload() {
         .single()
       if (subErr) throw subErr
 
-      navigate(`/success/${(subRow as Pick<Submission, 'id'>).id}`)
+      navigate(`/success/${(subRow as Pick<Submission, 'id'>).id}?company=${companyId}&position=${positionId}`)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       setError(`投递失败：${msg}`)

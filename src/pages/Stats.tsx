@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { Page } from '../components/Page'
 import { EChart } from '../components/EChart'
 import { supabase } from '../lib/supabase'
-import { POSITIONS, POSITION_MAP } from '../lib/positions'
+import { POSITIONS, POSITION_MAP, positionHexColor } from '../lib/positions'
 import { COMPANIES, COMPANY_MAP } from '../lib/companies'
 
 const HR_SESSION_KEY = 'hr_authed'
@@ -140,7 +140,7 @@ export default function Stats() {
         type: 'bar' as const,
         stack: 'count',
         data: companiesList.map((cid) => companyPositionCounts[cid]?.[p.id] ?? 0),
-        itemStyle: { color: p.color.replace('bg-', '') },
+        itemStyle: { color: positionHexColor(p.id) },
       })),
     }
   }, [companyPositionCounts, filterCompany])

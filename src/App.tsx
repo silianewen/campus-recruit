@@ -36,7 +36,10 @@ export default function App() {
           <Route path="/stats" element={<Stats />} />
           <Route path="/status" element={<Status />} />
           <Route path="/personality" element={<Personality />} />
-          <Route path="/skill-test/:positionId?" element={<SkillTest />} />
+          {/* /skill-test now uses ?company=&position= query params (set via Home / Success). */}
+          <Route path="/skill-test" element={<SkillTest />} />
+          {/* Old URL shape kept as defensive fallback — shows "go to home" message. */}
+          <Route path="/skill-test/:positionId" element={<SkillTest />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

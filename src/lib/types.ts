@@ -1,11 +1,16 @@
-// Shared types — mirror the Supabase schema in supabase/migrations/0001_init.sql.
+// Shared types — mirror the Supabase schema in supabase/migrations/.
 
-export type PositionId = 'frontend' | 'backend' | 'data' | 'product'
+// PositionId is now a free-form string (position IDs are slugified as
+// `{companyId}-{english-title-slug}`, e.g. `hongguang_nano-accounting-specialist`).
+// We type it as `string` since the registry is the source of truth.
+export type PositionId = string
 
 export interface Position {
   id: PositionId
   title: string
   description: string
+  // Optional UI metadata — set by positionRegistry's helpers if absent.
+  color?: string
 }
 
 // CompanyId is set by user-provided data in src/lib/companies.ts.

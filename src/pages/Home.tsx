@@ -102,7 +102,7 @@ export default function Home() {
                       >
                         <div className={`w-2 h-2 rounded-full ${pos.color} mb-2`} />
                         <div className="font-semibold text-slate-900">{pos.title}</div>
-                        <div className="text-xs text-slate-500 mt-1 line-clamp-2">{POSITIONS.find(x => x.id === p)?.desc}</div>
+                        <div className="text-xs text-slate-500 mt-1 line-clamp-2">{POSITIONS.find(x => x.id === p)?.description}</div>
                         <div className="text-xs text-blue-600 mt-2">点击上传 →</div>
                       </Link>
                     )
@@ -112,33 +112,26 @@ export default function Home() {
           </section>
         )}
 
-        {/* Bottom — assessment + status (unchanged) */}
+        {/* Bottom — assessment + status (HR section intentionally hidden from students) */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <Link to="/personality" className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition">
             <div className="text-2xl mb-2">🧠</div>
             <div className="font-semibold text-slate-900">性格测评</div>
             <div className="text-sm text-slate-500 mt-1">20 题 MBTI 风格，了解自己</div>
           </Link>
-          <Link to="/skill-test" className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition">
-            <div className="text-2xl mb-2">💼</div>
-            <div className="font-semibold text-slate-900">专业能力测试</div>
-            <div className="text-sm text-slate-500 mt-1">按岗位分类 · 5 分钟</div>
-          </Link>
           <Link to="/status" className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition">
             <div className="text-2xl mb-2">📬</div>
             <div className="font-semibold text-slate-900">我的投递状态</div>
             <div className="text-sm text-slate-500 mt-1">输入手机号查询</div>
           </Link>
+          <a href="https://campusrecruitment.vercel.app/skill-test"
+            className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition">
+            <div className="text-2xl mb-2">💼</div>
+            <div className="font-semibold text-slate-900">专业能力测试</div>
+            <div className="text-sm text-slate-500 mt-1">提交简历后系统会提示</div>
+          </a>
         </section>
-
-        <section className="bg-slate-900 text-slate-300 rounded-xl p-5 text-sm">
-          <div className="font-semibold text-white mb-2">🛠️ HR 后台（仅招聘官可见）</div>
-          <div className="flex gap-3 flex-wrap">
-            <Link to="/dashboard" className="text-blue-300 hover:underline">→ 简历列表 & 通知</Link>
-            <span>·</span>
-            <Link to="/stats" className="text-blue-300 hover:underline">→ 数据看板</Link>
-          </div>
-        </section>
+        {/* HR section intentionally not shown to students — access /dashboard directly via URL. */}
       </div>
     </div>
   )
