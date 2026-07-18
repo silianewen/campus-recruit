@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { supabase } from '../lib/supabase'
@@ -12,7 +12,9 @@ export default function Personality() {
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<Record<number, string>>({})
   const [submitting, setSubmitting] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const submittedRef = useRef(false)
 
   const total = MBTI_QUESTIONS.length
   const current = MBTI_QUESTIONS[step]
@@ -57,6 +59,7 @@ export default function Personality() {
         mbti_type: result.type,
       })
       if (insErr) throw insErr
+      setSaved(true)
     } catch (err) {
       setError('提交失败：' + (err instanceof Error ? err.message : String(err)))
     } finally {
@@ -64,11 +67,24 @@ export default function Personality() {
     }
   }
 
+  // Auto-submit once result is computed (don't make the user click "查看结果").
+  // Guard with a ref so we only call submit once per test session.
+  useEffect(() => {
+    if (allDone && result && supabase && !submittedRef.current && !submitting) {
+      submittedRef.current = true
+      void submit()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allDone, result])
+
   const reset = () => {
     setStarted(false)
     setStep(0)
     setAnswers({})
     setPhone('')
+    setSaved(false)
+    setError(null)
+    submittedRef.current = false
   }
 
   // Step 0: phone gate
@@ -113,7 +129,8 @@ export default function Personality() {
           </div>
 
           {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
-          {!error && (
+          {submitting && <p className="text-xs text-blue-600 mb-3">保存中…</p>}
+          {saved && !error && (
             <p className="text-xs text-emerald-600 mb-3">✅ 已保存到 HR 后台</p>
           )}
 
