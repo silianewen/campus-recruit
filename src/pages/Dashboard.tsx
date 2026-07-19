@@ -45,6 +45,10 @@ export default function Dashboard() {
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [search, setSearch] = useState('')
 
+  // Test result lookups: phone → latest MBTI; (phone|position_id) → latest skill result
+  const [mbtiByPhone, setMbtiByPhone] = useState<Record<string, string>>({})
+  const [skillByPhonePos, setSkillByPhonePos] = useState<Record<string, { score: number; total: number; at: string }>>({})
+
   // Notification modal
   const [notifTarget, setNotifTarget] = useState<SubmissionRow | null>(null)
   const [notifTitle, setNotifTitle] = useState('')
@@ -71,18 +75,32 @@ export default function Dashboard() {
     sessionStorage.removeItem(HR_SESSION_KEY)
     setAuthed(false)
     setRows([])
+    setMbtiByPhone({})
+    setSkillByPhonePos({})
   }
 
   const fetchRows = async () => {
     if (!supabase) return
     setLoading(true)
-    const { data, error } = await supabase
-      .from('submissions')
-      .select(`
-        id, status, channel, notes, created_at, updated_at, resume_id, position_id, company_id,
-        resume:resumes ( id, student_name, phone, major, university, file_url, file_name )
-      `)
-      .order('created_at', { ascending: false })
+    const [{ data, error }, persRes, skillRes] = await Promise.all([
+      supabase
+        .from('submissions')
+        .select(`
+          id, status, channel, notes, created_at, updated_at, resume_id, position_id, company_id,
+          resume:resumes ( id, student_name, phone, major, university, file_url, file_name )
+        `)
+        .order('created_at', { ascending: false }),
+      // Latest personality result per phone (we'll dedupe client-side)
+      supabase
+        .from('personality_results')
+        .select('phone, mbti_type, created_at')
+        .order('created_at', { ascending: false }),
+      // All skill results (group by phone+position client-side, keep latest)
+      supabase
+        .from('skill_results')
+        .select('phone, position_id, score, total, created_at')
+        .order('created_at', { ascending: false }),
+    ])
     if (error) {
       // eslint-disable-next-line no-console
       console.error(error)
@@ -93,6 +111,22 @@ export default function Dashboard() {
         resume: Array.isArray(d.resume) ? d.resume[0] ?? null : d.resume ?? null,
       })) as SubmissionRow[]
       setRows(normalized)
+    }
+    if (!persRes.error && persRes.data) {
+      // Take first (most recent) per phone
+      const m: Record<string, string> = {}
+      for (const r of persRes.data as { phone: string; mbti_type: string; created_at: string }[]) {
+        if (!m[r.phone]) m[r.phone] = r.mbti_type
+      }
+      setMbtiByPhone(m)
+    }
+    if (!skillRes.error && skillRes.data) {
+      const s: Record<string, { score: number; total: number; at: string }> = {}
+      for (const r of skillRes.data as { phone: string; position_id: string; score: number; total: number; created_at: string }[]) {
+        const key = `${r.phone}|${r.position_id}`
+        if (!s[key]) s[key] = { score: r.score, total: r.total, at: r.created_at }
+      }
+      setSkillByPhonePos(s)
     }
     setLoading(false)
   }
@@ -214,7 +248,7 @@ export default function Dashboard() {
         <button onClick={logout} className="ml-auto text-sm text-slate-500 hover:text-red-600">退出登录</button>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-600 text-left">
             <tr>
@@ -223,6 +257,8 @@ export default function Dashboard() {
               <th className="px-3 py-2">公司</th>
               <th className="px-3 py-2">岗位</th>
               <th className="px-3 py-2">专业</th>
+              <th className="px-3 py-2">性格 (MBTI)</th>
+              <th className="px-3 py-2">专业测试</th>
               <th className="px-3 py-2">状态</th>
               <th className="px-3 py-2">投递时间</th>
               <th className="px-3 py-2">操作</th>
@@ -230,47 +266,66 @@ export default function Dashboard() {
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={8} className="px-3 py-8 text-center text-slate-400">
+              <tr><td colSpan={10} className="px-3 py-8 text-center text-slate-400">
                 {loading ? '加载中…' : '暂无数据'}
               </td></tr>
             )}
-            {filtered.map((r) => (
-              <tr key={r.id} className="border-t border-slate-100 hover:bg-slate-50">
-                <td className="px-3 py-2 font-medium text-slate-900">{r.resume?.student_name ?? '—'}</td>
-                <td className="px-3 py-2 font-mono text-xs">{r.resume?.phone ?? '—'}</td>
-                <td className="px-3 py-2">
-                  {r.company_id ? (
-                    <span>
-                      <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${companyColor(r.company_id)}`} />
-                      {COMPANY_MAP[r.company_id]?.name ?? r.company_id}
-                    </span>
-                  ) : <span className="text-slate-300">—</span>}
-                </td>
-                <td className="px-3 py-2">
-                  <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${POSITION_MAP[r.position_id]?.color ?? 'bg-slate-300'}`} />
-                  {POSITION_MAP[r.position_id]?.title ?? r.position_id}
-                </td>
-                <td className="px-3 py-2 text-slate-600">{r.resume?.major ?? '—'}</td>
-                <td className="px-3 py-2">
-                  <select value={r.status} onChange={(e) => void updateStatus(r.id, e.target.value as SubmissionStatus)}
-                    className="px-2 py-0.5 border border-slate-200 rounded text-xs bg-white">
-                    {(Object.keys(SUBMISSION_STATUS_LABEL) as SubmissionStatus[]).map((s) =>
-                      <option key={s} value={s}>{SUBMISSION_STATUS_LABEL[s]}</option>
+            {filtered.map((r) => {
+              const phone = r.resume?.phone ?? ''
+              const mbti = phone ? mbtiByPhone[phone] : undefined
+              const skill = phone ? skillByPhonePos[`${phone}|${r.position_id}`] : undefined
+              return (
+                <tr key={r.id} className="border-t border-slate-100 hover:bg-slate-50">
+                  <td className="px-3 py-2 font-medium text-slate-900">{r.resume?.student_name ?? '—'}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{r.resume?.phone ?? '—'}</td>
+                  <td className="px-3 py-2">
+                    {r.company_id ? (
+                      <span>
+                        <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${companyColor(r.company_id)}`} />
+                        {COMPANY_MAP[r.company_id]?.name ?? r.company_id}
+                      </span>
+                    ) : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="px-3 py-2">
+                    <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${POSITION_MAP[r.position_id]?.color ?? 'bg-slate-300'}`} />
+                    {POSITION_MAP[r.position_id]?.title ?? r.position_id}
+                  </td>
+                  <td className="px-3 py-2 text-slate-600">{r.resume?.major ?? '—'}</td>
+                  <td className="px-3 py-2">
+                    {mbti ? (
+                      <span className="font-mono font-bold text-blue-600">{mbti}</span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
                     )}
-                  </select>
-                </td>
-                <td className="px-3 py-2 text-xs text-slate-500">{new Date(r.created_at).toLocaleString('zh-CN')}</td>
-                <td className="px-3 py-2 space-x-2">
-                  {r.resume?.file_url && (
-                    <a href={r.resume.file_url} target="_blank" rel="noreferrer"
-                      className="text-blue-600 hover:underline text-xs">简历</a>
-                  )}
-                  <button onClick={() => openNotifModal(r)} className="text-blue-600 hover:underline text-xs">
-                    通知
-                  </button>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="px-3 py-2">
+                    {skill ? (
+                      <span className="font-mono text-slate-900">{skill.score}/{skill.total}</span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <select value={r.status} onChange={(e) => void updateStatus(r.id, e.target.value as SubmissionStatus)}
+                      className="px-2 py-0.5 border border-slate-200 rounded text-xs bg-white">
+                      {(Object.keys(SUBMISSION_STATUS_LABEL) as SubmissionStatus[]).map((s) =>
+                        <option key={s} value={s}>{SUBMISSION_STATUS_LABEL[s]}</option>
+                      )}
+                    </select>
+                  </td>
+                  <td className="px-3 py-2 text-xs text-slate-500">{new Date(r.created_at).toLocaleString('zh-CN')}</td>
+                  <td className="px-3 py-2 space-x-2 whitespace-nowrap">
+                    {r.resume?.file_url && (
+                      <a href={r.resume.file_url} target="_blank" rel="noreferrer"
+                        className="text-blue-600 hover:underline text-xs">简历</a>
+                    )}
+                    <button onClick={() => openNotifModal(r)} className="text-blue-600 hover:underline text-xs">
+                      通知
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

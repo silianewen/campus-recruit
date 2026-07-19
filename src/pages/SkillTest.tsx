@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { POSITION_MAP, isPositionId } from '../lib/positions'
 import { COMPANY_MAP, isCompanyId } from '../lib/companies'
 import type { SkillQuestion } from '../lib/types'
+import { extractErrorMessage } from '../lib/errors'
 
 interface RemoteQuestion {
   id: string
@@ -94,7 +95,7 @@ export default function SkillTest() {
       setIdx(0)
       setAnswers({})
     } catch (err) {
-      setError('提交失败：' + (err instanceof Error ? err.message : String(err)))
+      setError('提交失败：' + extractErrorMessage(err))
     } finally {
       setSubmitting(false)
     }

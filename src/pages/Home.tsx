@@ -112,26 +112,31 @@ export default function Home() {
           </section>
         )}
 
-        {/* Bottom — assessment + status (HR section intentionally hidden from students) */}
+        {/* Bottom — assessment + status */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <Link to="/personality" className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition">
             <div className="text-2xl mb-2">🧠</div>
             <div className="font-semibold text-slate-900">性格测评</div>
             <div className="text-sm text-slate-500 mt-1">20 题 MBTI 风格，了解自己</div>
           </Link>
+          <Link to="/skill-test" className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition">
+            <div className="text-2xl mb-2">💼</div>
+            <div className="font-semibold text-slate-900">专业能力测试</div>
+            <div className="text-sm text-slate-500 mt-1">按公司/岗位分类，5 分钟</div>
+          </Link>
           <Link to="/status" className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition">
             <div className="text-2xl mb-2">📬</div>
             <div className="font-semibold text-slate-900">我的投递状态</div>
             <div className="text-sm text-slate-500 mt-1">输入手机号查询</div>
           </Link>
-          <a href="https://campusrecruitment.vercel.app/skill-test"
-            className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition">
-            <div className="text-2xl mb-2">💼</div>
-            <div className="font-semibold text-slate-900">专业能力测试</div>
-            <div className="text-sm text-slate-500 mt-1">提交简历后系统会提示</div>
-          </a>
         </section>
-        {/* HR section intentionally not shown to students — access /dashboard directly via URL. */}
+
+        {/* HR entry — small unobtrusive link in bottom corner */}
+        <div className="text-center mt-4">
+          <Link to="/dashboard" className="text-xs text-slate-400 hover:text-slate-600">
+            🛠 招聘官入口
+          </Link>
+        </div>
       </div>
     </div>
   )

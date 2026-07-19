@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { POSITION_MAP, isPositionId } from '../lib/positions'
 import { COMPANY_MAP, isCompanyId } from '../lib/companies'
 import type { Submission } from '../lib/types'
+import { extractErrorMessage } from '../lib/errors'
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10 MB
 const ACCEPTED_TYPES = [
@@ -124,8 +125,7 @@ export default function Upload() {
 
       navigate(`/success/${(subRow as Pick<Submission, 'id'>).id}?company=${companyId}&position=${positionId}`)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      setError(`投递失败：${msg}`)
+      setError(`投递失败：${extractErrorMessage(err)}`)
     } finally {
       setSubmitting(false)
     }

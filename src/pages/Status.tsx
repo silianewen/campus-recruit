@@ -5,6 +5,7 @@ import { POSITION_MAP } from '../lib/positions'
 import { COMPANY_MAP, companyColor } from '../lib/companies'
 import type { NotificationRow, SubmissionStatus } from '../lib/types'
 import { SUBMISSION_STATUS_LABEL } from '../lib/types'
+import { extractErrorMessage } from '../lib/errors'
 
 interface SubmissionView {
   id: string
@@ -94,8 +95,7 @@ export default function Status() {
       setPersonality((pers.data ?? []) as PersonalityView[])
       setSkills((sk.data ?? []) as SkillView[])
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      setError('查询失败：' + msg)
+      setError('查询失败：' + extractErrorMessage(err))
     } finally {
       setLoading(false)
     }

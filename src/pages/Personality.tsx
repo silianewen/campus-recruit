@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { supabase } from '../lib/supabase'
 import { MBTI_QUESTIONS, scoreMbti, MBTI_DESCRIPTIONS } from '../lib/questions-mbti'
+import { extractErrorMessage } from '../lib/errors'
 
 export default function Personality() {
   const navigate = useNavigate()
@@ -61,7 +62,7 @@ export default function Personality() {
       if (insErr) throw insErr
       setSaved(true)
     } catch (err) {
-      setError('提交失败：' + (err instanceof Error ? err.message : String(err)))
+      setError('提交失败：' + extractErrorMessage(err))
     } finally {
       setSubmitting(false)
     }
