@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* Dark theme — opt-in via `.dark` class on <html>. Toggle by adding/removing
+   the class; preference is persisted in localStorage by useTheme hook. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Smooth transition when toggling themes. */
+html { color-scheme: light; }
+html.dark { color-scheme: dark; }
+html, body { transition: background-color 150ms ease, color 150ms ease; }
+
 @theme {
   --color-brand: #2563eb;
   --color-brand-dark: #1d4ed8;
@@ -13,6 +22,11 @@ html, body, #root {
   font-family: system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   background-color: #f8fafc;
   color: #0f172a;
+}
+
+html.dark, html.dark body {
+  background-color: #0f172a;
+  color: #f1f5f9;
 }
 
 * {

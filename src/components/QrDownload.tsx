@@ -29,8 +29,8 @@ export function QrDownload({ text, filename = 'campus-recruit-qr.png', size = 20
 
   return (
     <div className="inline-flex flex-col items-center gap-2">
-      <canvas ref={canvasRef} width={size} height={size} className="rounded-lg border border-slate-200" />
-      {caption && <div className="text-xs text-slate-500">{caption}</div>}
+      <canvas ref={canvasRef} width={size} height={size} className="rounded-lg border border-slate-200 dark:border-slate-700" />
+      {caption && <div className="text-xs text-slate-500 dark:text-slate-400">{caption}</div>}
       {dataUrl && (
         <a
           href={dataUrl}

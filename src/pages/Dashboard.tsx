@@ -1,15 +1,13 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Page } from '../components/Page'
 import { supabase } from '../lib/supabase'
-import { POSITIONS, POSITION_MAP } from '../lib/positions'
-import { COMPANIES, COMPANY_MAP, companyColor } from '../lib/companies'
+import { fetchAllPositions, fetchCompanies, type PositionRow } from '../lib/loaders'
+import { useAsync } from '../hooks/useAsync'
+import { companyColor } from '../lib/companies'
 import type { SubmissionStatus } from '../lib/types'
 import { SUBMISSION_STATUS_LABEL } from '../lib/types'
 
 const HR_SESSION_KEY = 'hr_authed'
-// HR password is sourced exclusively from VITE_HR_PASSWORD.
-// Set it in .env.local (gitignored) for dev, and in Vercel project env for prod.
-// If unset, the login form is disabled — no fallback password in source.
 const HR_PASSWORD = import.meta.env.VITE_HR_PASSWORD as string | undefined
 
 interface SubmissionRow {
@@ -20,7 +18,7 @@ interface SubmissionRow {
   created_at: string
   updated_at: string
   resume_id: string
-  position_id: keyof typeof POSITION_MAP
+  position_id: string
   company_id: string | null
   resume: {
     id: string
@@ -45,16 +43,29 @@ export default function Dashboard() {
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [search, setSearch] = useState('')
 
-  // Test result lookups: phone → latest MBTI; (phone|position_id) → latest skill result
+  // Test-result lookups
   const [mbtiByPhone, setMbtiByPhone] = useState<Record<string, string>>({})
   const [skillByPhonePos, setSkillByPhonePos] = useState<Record<string, { score: number; total: number; at: string }>>({})
 
-  // Notification modal
   const [notifTarget, setNotifTarget] = useState<SubmissionRow | null>(null)
   const [notifTitle, setNotifTitle] = useState('')
   const [notifContent, setNotifContent] = useState('')
   const [notifSending, setNotifSending] = useState(false)
   const [notifResult, setNotifResult] = useState<string | null>(null)
+
+  // Load companies + positions from DB (DB-first).
+  const companiesAsync = useAsync(fetchCompanies, [])
+  const positionsAsync = useAsync(fetchAllPositions, [])
+  const positionsById = useMemo<Record<string, PositionRow>>(() => {
+    const m: Record<string, PositionRow> = {}
+    for (const p of positionsAsync.data ?? []) m[p.id] = p
+    return m
+  }, [positionsAsync.data])
+  const companyNameById = useMemo<Record<string, string>>(() => {
+    const m: Record<string, string> = {}
+    for (const c of companiesAsync.data ?? []) m[c.id] = c.name
+    return m
+  }, [companiesAsync.data])
 
   const tryLogin = (e: React.FormEvent) => {
     e.preventDefault()
@@ -90,12 +101,10 @@ export default function Dashboard() {
           resume:resumes ( id, student_name, phone, major, university, file_url, file_name )
         `)
         .order('created_at', { ascending: false }),
-      // Latest personality result per phone (we'll dedupe client-side)
       supabase
         .from('personality_results')
         .select('phone, mbti_type, created_at')
         .order('created_at', { ascending: false }),
-      // All skill results (group by phone+position client-side, keep latest)
       supabase
         .from('skill_results')
         .select('phone, position_id, score, total, created_at')
@@ -113,7 +122,6 @@ export default function Dashboard() {
       setRows(normalized)
     }
     if (!persRes.error && persRes.data) {
-      // Take first (most recent) per phone
       const m: Record<string, string> = {}
       for (const r of persRes.data as { phone: string; mbti_type: string; created_at: string }[]) {
         if (!m[r.phone]) m[r.phone] = r.mbti_type
@@ -162,8 +170,8 @@ export default function Dashboard() {
   const openNotifModal = (row: SubmissionRow) => {
     setNotifTarget(row)
     setNotifTitle('面试通知')
-    const companyName = row.company_id ? COMPANY_MAP[row.company_id]?.name ?? row.company_id : ''
-    const posName = POSITION_MAP[row.position_id]?.title ?? row.position_id
+    const companyName = row.company_id ? companyNameById[row.company_id] ?? row.company_id : ''
+    const posName = positionsById[row.position_id]?.title ?? row.position_id
     setNotifContent(`同学你好，你投递的 ${companyName ? companyName + ' · ' : ''}${posName} 岗位已进入面试环节，请回复本消息确认可面试时间。`)
     setNotifResult(null)
   }
@@ -181,21 +189,19 @@ export default function Dashboard() {
     setNotifSending(false)
     if (error) { setNotifResult('发送失败：' + error.message); return }
     setNotifResult('已发送 ✅')
-    // Auto-mark status as interview_scheduled
     await updateStatus(notifTarget.id, 'interview_scheduled')
   }
 
-  // --- Render: password gate ---
   if (!authed) {
     return (
       <Page title="HR 后台登录">
-        <form onSubmit={tryLogin} className="bg-white rounded-xl border border-slate-200 p-8 max-w-sm mx-auto">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">招聘官登录</h2>
+        <form onSubmit={tryLogin} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 max-w-sm mx-auto">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">招聘官登录</h2>
           {!HR_PASSWORD ? (
-            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-2 rounded mb-4">
+            <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs px-3 py-2 rounded mb-4">
               ⚠️ 未设置 <code className="font-mono">VITE_HR_PASSWORD</code>。<br />
               请在 <code className="font-mono">.env.local</code> 中添加：
-              <pre className="bg-amber-100 px-2 py-1 mt-1 rounded">VITE_HR_PASSWORD=你的密码</pre>
+              <pre className="bg-amber-100 dark:bg-amber-900/50 px-2 py-1 mt-1 rounded">VITE_HR_PASSWORD=你的密码</pre>
               然后重启 <code className="font-mono">npm run dev</code>。
             </div>
           ) : (
@@ -203,9 +209,9 @@ export default function Dashboard() {
               <input
                 type="password" value={pwd} onChange={(e) => setPwd(e.target.value)}
                 placeholder="HR 密码"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg mb-3 focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg mb-3 focus:ring-2 focus:ring-blue-500 outline-none"
               />
-              {pwdError && <p className="text-red-600 text-sm mb-3">{pwdError}</p>}
+              {pwdError && <p className="text-red-600 dark:text-red-400 text-sm mb-3">{pwdError}</p>}
               <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
                 进入
               </button>
@@ -216,22 +222,21 @@ export default function Dashboard() {
     )
   }
 
-  // --- Render: dashboard ---
   return (
     <Page title="HR 招聘官后台">
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <select value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}
-          className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+          className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm">
           <option value="all">全部公司</option>
-          {COMPANIES.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {(companiesAsync.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <select value={filterPos} onChange={(e) => setFilterPos(e.target.value)}
-          className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+          className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm">
           <option value="all">全部岗位</option>
-          {POSITIONS.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+          {(positionsAsync.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
         </select>
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+          className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm">
           <option value="all">全部状态</option>
           {(Object.keys(SUBMISSION_STATUS_LABEL) as SubmissionStatus[]).map((s) =>
             <option key={s} value={s}>{SUBMISSION_STATUS_LABEL[s]}</option>
@@ -239,18 +244,18 @@ export default function Dashboard() {
         </select>
         <input value={search} onChange={(e) => setSearch(e.target.value)}
           placeholder="搜索姓名 / 手机 / 专业"
-          className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm flex-1 min-w-40" />
+          className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm flex-1 min-w-40" />
         <button onClick={() => void fetchRows()} disabled={loading}
-          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm">
+          className="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-900 dark:text-slate-100 rounded-lg text-sm">
           {loading ? '加载中…' : '刷新'}
         </button>
-        <span className="text-sm text-slate-500">共 {filtered.length} 条</span>
-        <button onClick={logout} className="ml-auto text-sm text-slate-500 hover:text-red-600">退出登录</button>
+        <span className="text-sm text-slate-500 dark:text-slate-400">共 {filtered.length} 条</span>
+        <button onClick={logout} className="ml-auto text-sm text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400">退出登录</button>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-600 text-left">
+          <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 text-left">
             <tr>
               <th className="px-3 py-2">姓名</th>
               <th className="px-3 py-2">手机</th>
@@ -266,7 +271,7 @@ export default function Dashboard() {
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={10} className="px-3 py-8 text-center text-slate-400">
+              <tr><td colSpan={10} className="px-3 py-8 text-center text-slate-400 dark:text-slate-500">
                 {loading ? '加载中…' : '暂无数据'}
               </td></tr>
             )}
@@ -275,51 +280,51 @@ export default function Dashboard() {
               const mbti = phone ? mbtiByPhone[phone] : undefined
               const skill = phone ? skillByPhonePos[`${phone}|${r.position_id}`] : undefined
               return (
-                <tr key={r.id} className="border-t border-slate-100 hover:bg-slate-50">
-                  <td className="px-3 py-2 font-medium text-slate-900">{r.resume?.student_name ?? '—'}</td>
+                <tr key={r.id} className="border-t border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                  <td className="px-3 py-2 font-medium text-slate-900 dark:text-slate-100">{r.resume?.student_name ?? '—'}</td>
                   <td className="px-3 py-2 font-mono text-xs">{r.resume?.phone ?? '—'}</td>
                   <td className="px-3 py-2">
                     {r.company_id ? (
                       <span>
                         <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${companyColor(r.company_id)}`} />
-                        {COMPANY_MAP[r.company_id]?.name ?? r.company_id}
+                        {companyNameById[r.company_id] ?? r.company_id}
                       </span>
                     ) : <span className="text-slate-300">—</span>}
                   </td>
                   <td className="px-3 py-2">
-                    <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${POSITION_MAP[r.position_id]?.color ?? 'bg-slate-300'}`} />
-                    {POSITION_MAP[r.position_id]?.title ?? r.position_id}
+                    <span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5 bg-blue-500" />
+                    {positionsById[r.position_id]?.title ?? r.position_id}
                   </td>
-                  <td className="px-3 py-2 text-slate-600">{r.resume?.major ?? '—'}</td>
+                  <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{r.resume?.major ?? '—'}</td>
                   <td className="px-3 py-2">
                     {mbti ? (
-                      <span className="font-mono font-bold text-blue-600">{mbti}</span>
+                      <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{mbti}</span>
                     ) : (
                       <span className="text-slate-300">—</span>
                     )}
                   </td>
                   <td className="px-3 py-2">
                     {skill ? (
-                      <span className="font-mono text-slate-900">{skill.score}/{skill.total}</span>
+                      <span className="font-mono text-slate-900 dark:text-slate-100">{skill.score}/{skill.total}</span>
                     ) : (
                       <span className="text-slate-300">—</span>
                     )}
                   </td>
                   <td className="px-3 py-2">
                     <select value={r.status} onChange={(e) => void updateStatus(r.id, e.target.value as SubmissionStatus)}
-                      className="px-2 py-0.5 border border-slate-200 rounded text-xs bg-white">
+                      className="px-2 py-0.5 border border-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded text-xs">
                       {(Object.keys(SUBMISSION_STATUS_LABEL) as SubmissionStatus[]).map((s) =>
                         <option key={s} value={s}>{SUBMISSION_STATUS_LABEL[s]}</option>
                       )}
                     </select>
                   </td>
-                  <td className="px-3 py-2 text-xs text-slate-500">{new Date(r.created_at).toLocaleString('zh-CN')}</td>
+                  <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">{new Date(r.created_at).toLocaleString('zh-CN')}</td>
                   <td className="px-3 py-2 space-x-2 whitespace-nowrap">
                     {r.resume?.file_url && (
                       <a href={r.resume.file_url} target="_blank" rel="noreferrer"
-                        className="text-blue-600 hover:underline text-xs">简历</a>
+                        className="text-blue-600 dark:text-blue-400 hover:underline text-xs">简历</a>
                     )}
-                    <button onClick={() => openNotifModal(r)} className="text-blue-600 hover:underline text-xs">
+                    <button onClick={() => openNotifModal(r)} className="text-blue-600 dark:text-blue-400 hover:underline text-xs">
                       通知
                     </button>
                   </td>
@@ -330,30 +335,29 @@ export default function Dashboard() {
         </table>
       </div>
 
-      {/* Notification modal */}
       {notifTarget && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold mb-1">发送面试通知</h3>
-            <p className="text-sm text-slate-500 mb-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-1">发送面试通知</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
               收件人：{notifTarget.resume?.student_name}（{notifTarget.resume?.phone}）
             </p>
-            <label className="block text-sm font-medium mb-1">标题</label>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">标题</label>
             <input value={notifTitle} onChange={(e) => setNotifTitle(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg mb-3" />
-            <label className="block text-sm font-medium mb-1">内容</label>
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg mb-3" />
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">内容</label>
             <textarea value={notifContent} onChange={(e) => setNotifContent(e.target.value)} rows={4}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg mb-3" />
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg mb-3" />
             {notifResult && (
-              <p className={`text-sm mb-3 ${notifResult.startsWith('已发送') ? 'text-green-600' : 'text-red-600'}`}>
+              <p className={`text-sm mb-3 ${notifResult.startsWith('已发送') ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                 {notifResult}
               </p>
             )}
             <div className="flex justify-end gap-2">
               <button onClick={() => setNotifTarget(null)}
-                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">取消</button>
+                className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">取消</button>
               <button onClick={() => void sendNotif()} disabled={notifSending}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-400">
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-400 dark:disabled:bg-slate-700">
                 {notifSending ? '发送中…' : '发送并标记为"已约面"'}
               </button>
             </div>

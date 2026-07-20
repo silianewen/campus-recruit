@@ -10,6 +10,7 @@ This MVP is designed for **personal, low-stakes campus recruitment** (one HR use
 | `storage.objects` write on `resumes` bucket | **Open to anon** | Same reason. |
 | `storage.objects` read on `resumes` bucket | **Open to anon** | Lets HR open preview links without auth. |
 | `service_role key` | Lives in **`.env.local` only** (gitignored); not used by frontend. | Reserved for future admin tasks. |
+| Theme preference (light/dark) | Persisted in `localStorage` only (`theme` key); no server-side storage, no PII. | User-visible; can be reset by clearing site data. |
 
 ## What to do before production
 

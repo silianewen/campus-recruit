@@ -2,8 +2,11 @@ import { useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { supabase } from '../lib/supabase'
-import { POSITION_MAP, isPositionId } from '../lib/positions'
-import { COMPANY_MAP, isCompanyId } from '../lib/companies'
+import { isPositionId } from '../lib/positions'
+import { isCompanyId } from '../lib/companies'
+import { fetchCompanyName, fetchPosition, type PositionRow } from '../lib/loaders'
+import { useAsync } from '../hooks/useAsync'
+import { AsyncView } from '../components/AsyncView'
 import type { Submission } from '../lib/types'
 import { extractErrorMessage } from '../lib/errors'
 
@@ -32,8 +35,10 @@ export default function Upload() {
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const company = companyId ? COMPANY_MAP[companyId] : null
-  const pos = positionId ? POSITION_MAP[positionId] : null
+  const companyAsync = useAsync(() => companyId ? fetchCompanyName(companyId) : Promise.resolve(null), [companyId])
+  const posAsync = useAsync(() => positionId ? fetchPosition(positionId) : Promise.resolve(null), [positionId])
+  const companyName = companyAsync.data
+  const pos = posAsync.data as PositionRow | null
 
   const handleFile = (f: File | null) => {
     setError(null)
@@ -134,47 +139,58 @@ export default function Upload() {
   if (!companyId || !positionId) {
     return (
       <Page title="扫码投递">
-        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-600">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center text-slate-600 dark:text-slate-300">
           <p className="mb-4">缺少公司或岗位参数。</p>
-          <p className="text-sm text-slate-500 mb-4">请通过首页选择公司和岗位后再投递。</p>
-          <a href="/" className="text-blue-600 hover:underline">← 返回首页选择</a>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">请通过首页选择公司和岗位后再投递。</p>
+          <a href="/" className="text-blue-600 dark:text-blue-400 hover:underline">← 返回首页选择</a>
         </div>
       </Page>
     )
   }
 
+  const posTitle = pos?.title ?? positionId
+  const compTitle = companyName ?? companyId
+
   return (
     <Page
-      title={`投递：${pos?.title ?? positionId}`}
-      subtitle={`公司：${company?.name ?? companyId} · 岗位：${pos?.title ?? positionId}`}
+      title={`投递：${posTitle}`}
+      subtitle={`公司：${compTitle} · 岗位：${posTitle}`}
     >
-      <div className="bg-white rounded-xl border border-slate-200 p-6 max-w-xl mx-auto">
+      <AsyncView
+        data={posAsync.data}
+        loading={posAsync.loading}
+        error={posAsync.error}
+        refetch={posAsync.refetch}
+        isEmpty={() => false}
+      >
+        {() => (
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 max-w-xl mx-auto">
         <form onSubmit={handleSubmit} className="space-y-4">
           <Field label="姓名" required>
             <input
               type="text" required value={name} onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </Field>
           <Field label="手机号" required>
             <input
               type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)}
               placeholder="11 位手机号"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </Field>
           <Field label="专业" required>
             <input
               type="text" required value={major} onChange={(e) => setMajor(e.target.value)}
               placeholder="如：计算机科学与技术"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </Field>
           <Field label="学校" required>
             <input
               type="text" required value={university} onChange={(e) => setUniversity(e.target.value)}
               placeholder="如：清华大学"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </Field>
           <Field label="简历文件 (PDF / Word, ≤10MB)" required>
@@ -182,28 +198,30 @@ export default function Upload() {
               ref={fileInputRef} type="file" required
               accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
-              className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              className="block w-full text-sm text-slate-700 dark:text-slate-200 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-50 dark:file:bg-blue-900/40 file:text-blue-700 dark:file:text-blue-300 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/60"
             />
-            {file && <p className="text-xs text-slate-500 mt-1">已选：{file.name}（{(file.size / 1024).toFixed(0)} KB）</p>}
+            {file && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">已选：{file.name}（{(file.size / 1024).toFixed(0)} KB）</p>}
           </Field>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg text-sm">
+            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-2 rounded-lg text-sm">
               {error}
             </div>
           )}
 
           <button
             type="submit" disabled={submitting}
-            className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed"
+            className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 disabled:bg-slate-400 dark:disabled:bg-slate-700 disabled:cursor-not-allowed"
           >
             {submitting ? '提交中…' : '提交投递'}
           </button>
-          <p className="text-xs text-slate-400 text-center">
+          <p className="text-xs text-slate-400 dark:text-slate-500 text-center">
             公司：<code>{companyId}</code> · 岗位：<code>{positionId}</code> · 用于本次投递
           </p>
         </form>
       </div>
+        )}
+      </AsyncView>
     </Page>
   )
 }
@@ -211,7 +229,7 @@ export default function Upload() {
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="text-sm font-medium text-slate-700">
+      <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
         {label} {required && <span className="text-red-500">*</span>}
       </span>
       <div className="mt-1">{children}</div>
