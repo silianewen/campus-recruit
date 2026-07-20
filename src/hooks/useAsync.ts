@@ -4,6 +4,7 @@
 // OpenSpec change: post-mvp-cleanup-and-dark-theme
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { extractErrorMessage } from '../lib/errors'
 
 export interface AsyncState<T> {
   data: T | null
@@ -26,8 +27,7 @@ export function useAsync<T>(
       .then((data) => { if (!cancelled) setState({ data, loading: false, error: null }) })
       .catch((err: unknown) => {
         if (cancelled) return
-        const msg = err instanceof Error ? err.message : String(err)
-        setState({ data: null, loading: false, error: msg })
+        setState({ data: null, loading: false, error: extractErrorMessage(err) })
       })
     return () => { cancelled = true }
   }, [])
