@@ -1,5 +1,5 @@
-// 20-question MBTI-style personality assessment.
-// 4 dimensions × 5 questions each: E/I, S/N, T/F, J/P.
+// 49-question MBTI-style personality assessment.
+// 4 dimensions × 12-13 questions each: E/I, S/N, T/F, J/P (totals 13+12+12+12 = 49).
 // Each question's answer maps +1 to one pole; the dominant pole per dimension
 // determines that letter of the 4-letter type.
 
@@ -11,7 +11,7 @@ export interface MbtiQuestion {
 }
 
 export const MBTI_QUESTIONS: MbtiQuestion[] = [
-  // EI
+  // ==================== EI (13 questions) ====================
   {
     id: 1, dimension: 'EI',
     text: '周末你更倾向怎么过？',
@@ -52,9 +52,73 @@ export const MBTI_QUESTIONS: MbtiQuestion[] = [
       { key: 'b', text: '安静地写代码/做手工', pole: 'I' },
     ],
   },
-  // SN
   {
-    id: 6, dimension: 'SN',
+    id: 6, dimension: 'EI',
+    text: '你倾向于被介绍给一群新同事：',
+    options: [
+      { key: 'a', text: '一进来就挨个自我介绍', pole: 'E' },
+      { key: 'b', text: '先旁观，等熟悉了再聊', pole: 'I' },
+    ],
+  },
+  {
+    id: 7, dimension: 'EI',
+    text: '你更喜欢的沟通方式：',
+    options: [
+      { key: 'a', text: '电话 / 面谈 / 视频', pole: 'E' },
+      { key: 'b', text: '文字消息 / 邮件', pole: 'I' },
+    ],
+  },
+  {
+    id: 8, dimension: 'EI',
+    text: '会议中你通常：',
+    options: [
+      { key: 'a', text: '主动发表观点、引导讨论', pole: 'E' },
+      { key: 'b', text: '倾听为主，会后单独反馈', pole: 'I' },
+    ],
+  },
+  {
+    id: 9, dimension: 'EI',
+    text: '长时间独处后的感受：',
+    options: [
+      { key: 'a', text: '想找人聊聊换换心情', pole: 'E' },
+      { key: 'b', text: '挺享受的、可以继续', pole: 'I' },
+    ],
+  },
+  {
+    id: 10, dimension: 'EI',
+    text: '你在团队里更常扮演的角色：',
+    options: [
+      { key: 'a', text: '主动协调、推进事情', pole: 'E' },
+      { key: 'b', text: '专注自己负责的那块', pole: 'I' },
+    ],
+  },
+  {
+    id: 11, dimension: 'EI',
+    text: '面对陌生议题的讨论：',
+    options: [
+      { key: 'a', text: '先说几句试试水温', pole: 'E' },
+      { key: 'b', text: '等想清楚了再发言', pole: 'I' },
+    ],
+  },
+  {
+    id: 12, dimension: 'EI',
+    text: '你更享受：',
+    options: [
+      { key: 'a', text: '热闹的聚会、认识新朋友', pole: 'E' },
+      { key: 'b', text: '安静的咖啡馆角落', pole: 'I' },
+    ],
+  },
+  {
+    id: 13, dimension: 'EI',
+    text: '项目庆功宴你会：',
+    options: [
+      { key: 'a', text: '主动组织、活跃气氛', pole: 'E' },
+      { key: 'b', text: '安静参加、聊几个人', pole: 'I' },
+    ],
+  },
+  // ==================== SN (12 questions) ====================
+  {
+    id: 14, dimension: 'SN',
     text: '你更关注：',
     options: [
       { key: 'a', text: '眼前的事实和具体数据', pole: 'S' },
@@ -62,7 +126,7 @@ export const MBTI_QUESTIONS: MbtiQuestion[] = [
     ],
   },
   {
-    id: 7, dimension: 'SN',
+    id: 15, dimension: 'SN',
     text: '描述一件事时你倾向：',
     options: [
       { key: 'a', text: '举具体例子、数字、细节', pole: 'S' },
@@ -70,7 +134,7 @@ export const MBTI_QUESTIONS: MbtiQuestion[] = [
     ],
   },
   {
-    id: 8, dimension: 'SN',
+    id: 16, dimension: 'SN',
     text: '你更信任：',
     options: [
       { key: 'a', text: '经验证过的方法', pole: 'S' },
@@ -78,7 +142,7 @@ export const MBTI_QUESTIONS: MbtiQuestion[] = [
     ],
   },
   {
-    id: 9, dimension: 'SN',
+    id: 17, dimension: 'SN',
     text: '阅读时你更看重：',
     options: [
       { key: 'a', text: '能立即用到、能解决问题', pole: 'S' },
@@ -86,16 +150,72 @@ export const MBTI_QUESTIONS: MbtiQuestion[] = [
     ],
   },
   {
-    id: 10, dimension: 'SN',
+    id: 18, dimension: 'SN',
     text: '对一个项目你更关心：',
     options: [
       { key: 'a', text: '当前阶段怎么落地', pole: 'S' },
       { key: 'b', text: '长期愿景和潜在影响', pole: 'N' },
     ],
   },
-  // TF
   {
-    id: 11, dimension: 'TF',
+    id: 19, dimension: 'SN',
+    text: '读说明书 vs 探索玩法：',
+    options: [
+      { key: 'a', text: '我先读说明书', pole: 'S' },
+      { key: 'b', text: '我更喜欢自己摸索', pole: 'N' },
+    ],
+  },
+  {
+    id: 20, dimension: 'SN',
+    text: '对"新出的产品"：',
+    options: [
+      { key: 'a', text: '等用过的人说好了再买', pole: 'S' },
+      { key: 'b', text: '第一时间想体验', pole: 'N' },
+    ],
+  },
+  {
+    id: 21, dimension: 'SN',
+    text: '会议讨论方案时你倾向：',
+    options: [
+      { key: 'a', text: '看现有约束和风险', pole: 'S' },
+      { key: 'b', text: '想象各种可能性', pole: 'N' },
+    ],
+  },
+  {
+    id: 22, dimension: 'SN',
+    text: '你更喜欢的工作：',
+    options: [
+      { key: 'a', text: '明确流程、按部就班', pole: 'S' },
+      { key: 'b', text: '有探索空间、可发挥创意', pole: 'N' },
+    ],
+  },
+  {
+    id: 23, dimension: 'SN',
+    text: '记忆事物的方式：',
+    options: [
+      { key: 'a', text: '具体细节、当时画面', pole: 'S' },
+      { key: 'b', text: '整体感觉、当时的氛围', pole: 'N' },
+    ],
+  },
+  {
+    id: 24, dimension: 'SN',
+    text: '你更看重一段文字的：',
+    options: [
+      { key: 'a', text: '字面意思和事实', pole: 'S' },
+      { key: 'b', text: '言外之意和隐喻', pole: 'N' },
+    ],
+  },
+  {
+    id: 25, dimension: 'SN',
+    text: '面对"如果 X 怎么办"：',
+    options: [
+      { key: 'a', text: '回到 X 的当前事实', pole: 'S' },
+      { key: 'b', text: '顺着推演各种未来', pole: 'N' },
+    ],
+  },
+  // ==================== TF (12 questions) ====================
+  {
+    id: 26, dimension: 'TF',
     text: '做决定时你更依赖：',
     options: [
       { key: 'a', text: '逻辑分析、利弊权衡', pole: 'T' },
@@ -103,7 +223,7 @@ export const MBTI_QUESTIONS: MbtiQuestion[] = [
     ],
   },
   {
-    id: 12, dimension: 'TF',
+    id: 27, dimension: 'TF',
     text: '和朋友意见冲突时：',
     options: [
       { key: 'a', text: '摆事实讲道理', pole: 'T' },
@@ -111,7 +231,7 @@ export const MBTI_QUESTIONS: MbtiQuestion[] = [
     ],
   },
   {
-    id: 13, dimension: 'TF',
+    id: 28, dimension: 'TF',
     text: '批评别人时你倾向：',
     options: [
       { key: 'a', text: '直接指出问题点', pole: 'T' },
@@ -119,7 +239,7 @@ export const MBTI_QUESTIONS: MbtiQuestion[] = [
     ],
   },
   {
-    id: 14, dimension: 'TF',
+    id: 29, dimension: 'TF',
     text: '你更欣赏哪种同事：',
     options: [
       { key: 'a', text: '客观理性、能拍板', pole: 'T' },
@@ -127,16 +247,72 @@ export const MBTI_QUESTIONS: MbtiQuestion[] = [
     ],
   },
   {
-    id: 15, dimension: 'TF',
+    id: 30, dimension: 'TF',
     text: '遇到不公时你第一反应：',
     options: [
       { key: 'a', text: '分析原因、寻求制度改进', pole: 'T' },
       { key: 'b', text: '心疼当事人、提供情感支持', pole: 'F' },
     ],
   },
-  // JP
   {
-    id: 16, dimension: 'JP',
+    id: 31, dimension: 'TF',
+    text: '同事犯错时：',
+    options: [
+      { key: 'a', text: '指出问题、协助改正', pole: 'T' },
+      { key: 'b', text: '先安慰、再私下提醒', pole: 'F' },
+    ],
+  },
+  {
+    id: 32, dimension: 'TF',
+    text: '评价一个决定更看重：',
+    options: [
+      { key: 'a', text: '是否理性、收益清晰', pole: 'T' },
+      { key: 'b', text: '是否让相关人感到公平', pole: 'F' },
+    ],
+  },
+  {
+    id: 33, dimension: 'TF',
+    text: '你更不喜欢的评价是：',
+    options: [
+      { key: 'a', text: '"你这人太感情用事"', pole: 'T' },
+      { key: 'b', text: '"你这人太冷漠"', pole: 'F' },
+    ],
+  },
+  {
+    id: 34, dimension: 'TF',
+    text: '团队出现冲突时：',
+    options: [
+      { key: 'a', text: '摆出利弊、强调客观标准', pole: 'T' },
+      { key: 'b', text: '倾听各方感受、寻求共识', pole: 'F' },
+    ],
+  },
+  {
+    id: 35, dimension: 'TF',
+    text: '评价一件艺术品时：',
+    options: [
+      { key: 'a', text: '关注结构、技巧、表达力', pole: 'T' },
+      { key: 'b', text: '关注情感共鸣、触动点', pole: 'F' },
+    ],
+  },
+  {
+    id: 36, dimension: 'TF',
+    text: '听到朋友分手：',
+    options: [
+      { key: 'a', text: '分析原因、给出建议', pole: 'T' },
+      { key: 'b', text: '陪伴倾听、表达支持', pole: 'F' },
+    ],
+  },
+  {
+    id: 37, dimension: 'TF',
+    text: '哪种让你更满足：',
+    options: [
+      { key: 'a', text: '把复杂问题解清楚', pole: 'T' },
+      { key: 'b', text: '帮到一个人走出低谷', pole: 'F' },
+    ],
+  },
+  // ==================== JP (12 questions) ====================
+  {
+    id: 38, dimension: 'JP',
     text: '你对旅行的态度：',
     options: [
       { key: 'a', text: '提前规划好每一天行程', pole: 'J' },
@@ -144,7 +320,7 @@ export const MBTI_QUESTIONS: MbtiQuestion[] = [
     ],
   },
   {
-    id: 17, dimension: 'JP',
+    id: 39, dimension: 'JP',
     text: '面对截止日期：',
     options: [
       { key: 'a', text: '提前完成、不喜欢压线', pole: 'J' },
@@ -152,7 +328,7 @@ export const MBTI_QUESTIONS: MbtiQuestion[] = [
     ],
   },
   {
-    id: 18, dimension: 'JP',
+    id: 40, dimension: 'JP',
     text: '你的桌面/工作区：',
     options: [
       { key: 'a', text: '分类整齐、井井有条', pole: 'J' },
@@ -160,7 +336,7 @@ export const MBTI_QUESTIONS: MbtiQuestion[] = [
     ],
   },
   {
-    id: 19, dimension: 'JP',
+    id: 41, dimension: 'JP',
     text: '开始一个新项目时：',
     options: [
       { key: 'a', text: '先列计划、拆任务', pole: 'J' },
@@ -168,11 +344,67 @@ export const MBTI_QUESTIONS: MbtiQuestion[] = [
     ],
   },
   {
-    id: 20, dimension: 'JP',
+    id: 42, dimension: 'JP',
     text: '你更享受：',
     options: [
       { key: 'a', text: '事情有定论、可以收尾', pole: 'J' },
       { key: 'b', text: '保持开放、有多种可能性', pole: 'P' },
+    ],
+  },
+  {
+    id: 43, dimension: 'JP',
+    text: '面对突发变化：',
+    options: [
+      { key: 'a', text: '不喜欢、尽量按原计划', pole: 'J' },
+      { key: 'b', text: '适应性强、跟着变化走', pole: 'P' },
+    ],
+  },
+  {
+    id: 44, dimension: 'JP',
+    text: '开会迟到：',
+    options: [
+      { key: 'a', text: '我会非常不安', pole: 'J' },
+      { key: 'b', text: '偶尔会、问题不大', pole: 'P' },
+    ],
+  },
+  {
+    id: 45, dimension: 'JP',
+    text: '做选择题：',
+    options: [
+      { key: 'a', text: '想清楚再选', pole: 'J' },
+      { key: 'b', text: '凭感觉、可调整', pole: 'P' },
+    ],
+  },
+  {
+    id: 46, dimension: 'JP',
+    text: '对你来说，最难受的是：',
+    options: [
+      { key: 'a', text: '事情悬而未决', pole: 'J' },
+      { key: 'b', text: '失去选择自由', pole: 'P' },
+    ],
+  },
+  {
+    id: 47, dimension: 'JP',
+    text: '整理房间：',
+    options: [
+      { key: 'a', text: '有固定流程、一气呵成', pole: 'J' },
+      { key: 'b', text: '看心情、想到再弄', pole: 'P' },
+    ],
+  },
+  {
+    id: 48, dimension: 'JP',
+    text: '面对模糊任务：',
+    options: [
+      { key: 'a', text: '先要清楚定义、再动手', pole: 'J' },
+      { key: 'b', text: '边做边澄清', pole: 'P' },
+    ],
+  },
+  {
+    id: 49, dimension: 'JP',
+    text: '你更欣赏的人：',
+    options: [
+      { key: 'a', text: '按部就班、有始有终', pole: 'J' },
+      { key: 'b', text: '灵活应变、拥抱变化', pole: 'P' },
     ],
   },
 ]

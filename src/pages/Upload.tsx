@@ -30,6 +30,7 @@ export default function Upload() {
   const [phone, setPhone] = useState('')
   const [major, setMajor] = useState('')
   const [university, setUniversity] = useState('')
+  const [degree, setDegree] = useState<string>('') // 学历 (degree level) — drives HR dashboard analytics
   const [file, setFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -64,6 +65,7 @@ export default function Upload() {
     if (!name.trim() || !phone.trim() || !major.trim() || !university.trim()) {
       setError('请填写所有必填项'); return
     }
+    if (!degree) { setError('请选择学历'); return }
     if (!file) { setError('请选择简历文件'); return }
     if (!/^1[3-9]\d{9}$/.test(phone.trim())) {
       setError('手机号格式不正确'); return
@@ -104,6 +106,7 @@ export default function Upload() {
           phone: phone.trim(),
           major: major.trim(),
           university: university.trim(),
+          degree,
           company_id: companyId,
           position_id: positionId,
           file_url: fileUrl,
@@ -192,6 +195,19 @@ export default function Upload() {
               placeholder="如：清华大学"
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
             />
+          </Field>
+          <Field label="学历" required>
+            <select
+              required value={degree} onChange={(e) => setDegree(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              <option value="">— 选择学历 —</option>
+              <option value="大专">大专</option>
+              <option value="本科">本科</option>
+              <option value="硕士">硕士</option>
+              <option value="博士">博士</option>
+              <option value="其他">其他</option>
+            </select>
           </Field>
           <Field label="简历文件 (PDF / Word, ≤10MB)" required>
             <input

@@ -12,6 +12,7 @@ export interface PositionRow {
   id: string
   title: string
   description: string
+  category?: string | null
 }
 
 export async function fetchCompanies(): Promise<Company[]> {
@@ -28,7 +29,7 @@ export async function fetchAllPositions(): Promise<PositionRow[]> {
   if (!supabase) return []
   const { data, error } = await supabase
     .from('positions')
-    .select('id, title, description')
+    .select('id, title, description, category')
     .order('id', { ascending: true })
   if (error) throw error
   return (data ?? []) as PositionRow[]
@@ -45,9 +46,21 @@ export async function fetchPositionsForCompany(companyId: string): Promise<Posit
   if (!supabase) return []
   const { data, error } = await supabase
     .from('positions')
-    .select('id, title, description')
+    .select('id, title, description, category')
     .like('id', `${companyId}-%`)
     .order('title', { ascending: true })
+  if (error) throw error
+  return (data ?? []) as PositionRow[]
+}
+
+/** Positions filtered by category (used by the right-side filter on the student page). */
+export async function fetchPositionsByCategory(category: string): Promise<PositionRow[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('positions')
+    .select('id, title, description, category')
+    .eq('category', category)
+    .order('id', { ascending: true })
   if (error) throw error
   return (data ?? []) as PositionRow[]
 }
@@ -56,7 +69,7 @@ export async function fetchPosition(positionId: string): Promise<PositionRow | n
   if (!supabase) return null
   const { data, error } = await supabase
     .from('positions')
-    .select('id, title, description')
+    .select('id, title, description, category')
     .eq('id', positionId)
     .maybeSingle()
   if (error) throw error

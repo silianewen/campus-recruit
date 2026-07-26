@@ -11,6 +11,9 @@ export interface Position {
   description: string
   // Optional UI metadata — set by positionRegistry's helpers if absent.
   color?: string
+  // Drives the right-side category filter on the student page.
+  // Supabase column `positions.category` (added in 0007).
+  category?: string | null
 }
 
 // CompanyId is set by user-provided data in src/lib/companies.ts.
@@ -48,6 +51,8 @@ export interface Resume {
   email: string | null
   major: string
   university: string
+  // Optional 学历 (degree level).  Supabase column `resumes.degree` (added in 0007).
+  degree?: string | null
   position_id: PositionId
   company_id: string | null
   file_url: string
