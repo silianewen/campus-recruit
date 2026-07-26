@@ -105,11 +105,12 @@ export default function Home() {
             <div className="text-2xl mb-2">🧠</div>
             <div className="font-semibold text-slate-900 dark:text-slate-100">性格测评</div>
             <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">49 题 MBTI 风格，了解自己</div>
+            <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">约 8 分钟</div>
           </Link>
           <Link to="/skill-test" className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 hover:shadow-md transition">
             <div className="text-2xl mb-2">💼</div>
             <div className="font-semibold text-slate-900 dark:text-slate-100">专业能力测试</div>
-            <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">按公司/岗位分类，5 分钟</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">按公司/岗位分类，5 道题</div>
           </Link>
           <Link to="/status" className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 hover:shadow-md transition">
             <div className="text-2xl mb-2">📬</div>

@@ -109,16 +109,17 @@ export async function fetchCompany(companyId: string): Promise<Company | null> {
  * once. Used by HRList (per-row "重复投递" badge + filter) and HRDashboard
  * (重复投递 KPI). Returns the raw list of duplicate phone numbers; the row
  * itself is considered duplicate when its resume phone is in this set.
+ *
+ * When `companyId` is provided, "duplicate" is scoped to that company —
+ * a phone counts as duplicate only if it has 2+ resumes for that company.
+ * This is what the company-group dashboard needs (no cross-company leak
+ * into their stats). Admin / default pass null/undefined for global view.
  */
-export async function fetchDuplicatePhones(): Promise<string[]> {
+export async function fetchDuplicatePhones(companyId?: string | null): Promise<string[]> {
   if (!supabase) return []
-  // We can't GROUP BY HAVING directly via PostgREST select, so we fetch all
-  // distinct phones with count > 1 via .rpc would be cleaner, but we also want
-  // this to work without RPC setup; fall back to fetch+groupBy client-side.
-  // For 50–10k rows this is cheap.
-  const { data, error } = await supabase
-    .from('resumes')
-    .select('phone')
+  let query = supabase.from('resumes').select('phone, company_id')
+  if (companyId) query = query.eq('company_id', companyId)
+  const { data, error } = await query
   if (error) throw error
   const counts = new Map<string, number>()
   for (const r of (data ?? []) as { phone: string }[]) {

@@ -160,14 +160,7 @@ export default function HRAdminUsers() {
   if (!auth) return null
 
   return (
-    <Page
-      title="用户管理"
-      toolbar={
-        <button onClick={() => navigate('/hr')} className="px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
-          ← 返回后台
-        </button>
-      }
-    >
+    <Page title="用户管理">
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-slate-600 dark:text-slate-400">
           {users.length} 个账号 · {groups.length} 个分组

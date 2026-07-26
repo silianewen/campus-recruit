@@ -115,6 +115,18 @@ export default function HRList() {
   const isReadOnly = scope?.kind === 'default'
   const canSend = scope?.kind === 'admin' || scope?.kind === 'company'
 
+  // P7: bulk selection + download
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const toggleRow = (id: string) => {
+    setSelectedIds((s) => {
+      const next = new Set(s)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const clearSelection = () => setSelectedIds(new Set())
+
   const fetchRows = async () => {
     if (!supabase) return
     setLoading(true)
@@ -202,6 +214,41 @@ export default function HRList() {
       return true
     })
   }, [rows, filterCompany, filterPos, filterStatus, filterDuplicate, search, dupePhonesAsync.data])
+
+  // P7: selection helpers — depend on `filtered` above
+  const filteredIds = useMemo(() => filtered.map((r) => r.id), [filtered])
+  const allFilteredSelected =
+    filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id))
+  const selectedCount = filteredIds.filter((id) => selectedIds.has(id)).length
+  const toggleAll = () => {
+    setSelectedIds((s) => {
+      if (allFilteredSelected) {
+        const next = new Set(s)
+        for (const id of filteredIds) next.delete(id)
+        return next
+      }
+      const next = new Set(s)
+      for (const id of filteredIds) next.add(id)
+      return next
+    })
+  }
+  const bulkDownload = () => {
+    const targets = filtered.filter(
+      (r) => selectedIds.has(r.id) && r.resume?.file_url,
+    )
+    if (targets.length === 0) return
+    targets.forEach((r, i) => {
+      setTimeout(() => {
+        const a = document.createElement('a')
+        a.href = r.resume!.file_url!
+        a.download = r.resume!.file_name
+        a.rel = 'noopener'
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+      }, 200 * i)
+    })
+  }
 
   const updateStatus = async (id: string, status: SubmissionStatus) => {
     if (!supabase) return
@@ -321,21 +368,31 @@ export default function HRList() {
           {loading ? '加载中…' : '暂无数据'}
         </div>
       )}
-      {filtered.map((r) => {
+      {filtered.map((r, idx) => {
         const phone = r.resume?.phone ?? ''
         const isDup = !!phone && (dupePhonesAsync.data ?? []).includes(phone)
+        const checked = selectedIds.has(r.id)
         return (
           <div key={r.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
             <div className="flex items-center justify-between mb-1">
-              <div className="font-medium text-slate-900 dark:text-slate-100">{r.resume?.student_name ?? '—'}</div>
-              {isDup && (
-                <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300">
-                  重复投递
-                </span>
-              )}
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xs text-slate-400 dark:text-slate-500 font-mono w-6 text-right flex-shrink-0">{idx + 1}.</span>
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggleRow(r.id)}
+                  className="w-4 h-4 flex-shrink-0"
+                />
+                <div className="font-medium text-slate-900 dark:text-slate-100 truncate">{r.resume?.student_name ?? '—'}</div>
+                {isDup && (
+                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 flex-shrink-0">
+                    重复投递
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 font-mono mb-1">{phone}</div>
-            <div className="text-sm text-slate-700 dark:text-slate-300 mb-1">
+            <div className="text-xs text-slate-500 dark:text-slate-400 font-mono mb-1 ml-8">{phone}</div>
+            <div className="text-sm text-slate-700 dark:text-slate-300 mb-1 ml-8">
               {r.company_id && (
                 <span>
                   <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${companyColor(r.company_id)}`} />
@@ -344,10 +401,10 @@ export default function HRList() {
               )}{' '}
               · {positionsById[r.position_id]?.title ?? r.position_id}
             </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+            <div className="text-xs text-slate-500 dark:text-slate-400 mb-2 ml-8">
               {r.resume?.university ?? '—'}{r.resume?.degree && ` (${r.resume.degree})`}
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between ml-8">
               <select value={r.status} onChange={(e) => void updateStatus(r.id, e.target.value as SubmissionStatus)}
                 className="px-2 py-0.5 border border-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded text-xs">
                 {(Object.keys(SUBMISSION_STATUS_LABEL) as SubmissionStatus[]).map((s) =>
@@ -385,6 +442,16 @@ export default function HRList() {
       <table className="w-full text-sm">
         <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 text-left">
           <tr>
+            <th className="px-3 py-2 whitespace-nowrap w-10 text-center">
+              <input
+                type="checkbox"
+                checked={allFilteredSelected}
+                onChange={toggleAll}
+                aria-label="全选当前筛选结果"
+                className="w-4 h-4"
+              />
+            </th>
+            <th className="px-3 py-2 whitespace-nowrap w-10">#</th>
             <th className="px-3 py-2 whitespace-nowrap">姓名</th>
             <th className="px-3 py-2 whitespace-nowrap">手机</th>
             <th className="px-3 py-2 whitespace-nowrap">标记</th>
@@ -401,17 +468,29 @@ export default function HRList() {
         </thead>
         <tbody>
           {filtered.length === 0 && (
-            <tr><td colSpan={12} className="px-3 py-8 text-center text-slate-400 dark:text-slate-500">
+            <tr><td colSpan={13} className="px-3 py-8 text-center text-slate-400 dark:text-slate-500">
               {loading ? '加载中…' : '暂无数据'}
             </td></tr>
           )}
-          {filtered.map((r) => {
+          {filtered.map((r, idx) => {
             const phone = r.resume?.phone ?? ''
             const isDuplicate = !!phone && (dupePhonesAsync.data ?? []).includes(phone)
             const mbti = phone ? mbtiByPhone[phone] : undefined
             const skill = phone ? skillByPhonePos[`${phone}|${r.position_id}`] : undefined
+            const checked = selectedIds.has(r.id)
             return (
-              <tr key={r.id} className="border-t border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30">
+              <tr key={r.id} className={`border-t border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30 ${checked ? 'bg-blue-50/40 dark:bg-blue-900/20' : ''}`}>
+                <td className="px-3 py-2 text-center">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleRow(r.id)}
+                    className="w-4 h-4"
+                  />
+                </td>
+                <td className="px-3 py-2 text-xs text-slate-400 dark:text-slate-500 font-mono text-center w-10">
+                  {idx + 1}
+                </td>
                 <td className="px-3 py-2 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">{r.resume?.student_name ?? '—'}</td>
                 <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{r.resume?.phone ?? '—'}</td>
                 <td className="px-3 py-2 whitespace-nowrap">
@@ -543,6 +622,41 @@ export default function HRList() {
       {isReadOnly && (
         <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm px-3 py-2 rounded-lg mb-3">
           ⚠ 默认分组：当前为只读模式，无法修改状态或发送通知
+        </div>
+      )}
+
+      {/* P7 selection bar (bulk download) */}
+      {filtered.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 mb-3 px-3 py-2 bg-slate-50 dark:bg-slate-900/30 rounded-lg border border-slate-200 dark:border-slate-700 text-sm">
+          <label className="inline-flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={allFilteredSelected}
+              onChange={toggleAll}
+              className="w-4 h-4"
+            />
+            <span className="font-medium text-slate-800 dark:text-slate-200">全选当前筛选结果</span>
+          </label>
+          <span className="text-slate-500 dark:text-slate-400">
+            已选 <strong className="text-slate-700 dark:text-slate-300">{selectedCount}</strong> / {filteredIds.length} 条
+          </span>
+          <button
+            type="button"
+            onClick={bulkDownload}
+            disabled={selectedCount === 0}
+            className="ml-auto px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed"
+          >
+            批量下载 ({selectedCount})
+          </button>
+          {selectedCount > 0 && (
+            <button
+              type="button"
+              onClick={clearSelection}
+              className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+            >
+              清除选择
+            </button>
+          )}
         </div>
       )}
 

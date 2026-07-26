@@ -74,7 +74,12 @@ export default function HRDashboard() {
   const positions = positionsAsync.data ?? []
   const allPositions = allPositionsAsync.data ?? []
   const companies = companiesAsync.data ?? []
-  const dupePhonesAsync = useAsync(fetchDuplicatePhones, [])
+  // P8: company-scoped duplicate count. Admin / default see the full set;
+  // company group sees only phones duplicated within its own company.
+  const dupePhonesAsync = useAsync(
+    () => fetchDuplicatePhones(scopeCompanyId),
+    [scopeCompanyId],
+  )
 
   useEffect(() => {
     if (!scope) {

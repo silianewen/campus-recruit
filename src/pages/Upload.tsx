@@ -11,11 +11,8 @@ import type { Submission } from '../lib/types'
 import { extractErrorMessage } from '../lib/errors'
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10 MB
-const ACCEPTED_TYPES = [
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-]
+// Only PDF accepted (per HR spec — Word files not allowed in this build).
+const ACCEPTED_TYPES = ['application/pdf']
 
 export default function Upload() {
   const [searchParams] = useSearchParams()
@@ -49,7 +46,7 @@ export default function Upload() {
       return
     }
     if (!ACCEPTED_TYPES.includes(f.type)) {
-      setError('仅支持 PDF / Word 文档')
+      setError('仅支持 PDF 格式')
       return
     }
     setFile(f)
@@ -215,14 +212,13 @@ export default function Upload() {
           <Field label="专业" required>
             <input
               type="text" required value={major} onChange={(e) => setMajor(e.target.value)}
-              placeholder="如：计算机科学与技术"
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </Field>
           <Field label="学校" required>
             <input
               type="text" required value={university} onChange={(e) => setUniversity(e.target.value)}
-              placeholder="如：清华大学"
+              placeholder="请填写高校全称"
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </Field>
@@ -239,10 +235,10 @@ export default function Upload() {
               <option value="其他">其他</option>
             </select>
           </Field>
-          <Field label="简历文件 (PDF / Word, ≤10MB)" required>
+          <Field label="简历文件 (仅 PDF 格式, ≤10MB)" required>
             <input
               ref={fileInputRef} type="file" required
-              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              accept=".pdf,application/pdf"
               onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
               className="block w-full text-sm text-slate-700 dark:text-slate-200 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-50 dark:file:bg-blue-900/40 file:text-blue-700 dark:file:text-blue-300 hover:file:bg-blue-100 dark:hover:file:bg-blue-900/60"
             />

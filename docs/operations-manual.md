@@ -413,6 +413,29 @@ WHERE username = '<username>';
 
 （推荐：让 IT 写一个一键 `reset-password.sql` 脚本占位。）
 
+#### 手动给某个岗位设截止时间（closes_at）
+
+当前没有 HR 端 UI 可以直接改（需要 IT 加管理页面，deferred）。**现在怎么设**：
+
+1. 打开 https://supabase.com/dashboard → 你的项目
+2. 左侧 → **Table Editor** → 选 `positions` 表
+3. 找到要改的岗位行 → 点 `closes_at` 单元格
+4. 输入日期时间（**必须用 `TIMESTAMPTZ` 格式**，例如 `2026-08-15 23:59:59+08` 或带时区的 ISO 字符串）
+5. 保存
+6. **重要**：回到 SQL Editor 跑 `NOTIFY pgrst, 'reload schema';` 让前端 PostgREST 看到新 schema
+7. 学生端在 `closes_at` 之后打开 `/upload?company=X&position=Y` 会看到 "已截止" 页
+
+或者用 SQL 一把改多个：
+```sql
+UPDATE positions
+SET closes_at = '2026-08-15 23:59:59+08'
+WHERE id = 'changlian_metal-hr-admin-specialist';
+```
+
+清空（恢复开放）：`UPDATE positions SET closes_at = NULL WHERE id = '...';`
+
+> 截止时间只是**软截止**——学生端会看到"已截止"提示但仍可绕过（直接调 Supabase REST API 提交）。MVP 范围不修复，依赖 RLS（生产化 change）。
+
 #### 删除账号
 
 `/hr/admin/users` 列表行尾 **删除** 按钮（不能删自己）。

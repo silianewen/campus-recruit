@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { supabase } from '../lib/supabase'
 import { MBTI_QUESTIONS, scoreMbti, MBTI_DESCRIPTIONS } from '../lib/questions-mbti'
@@ -104,6 +104,9 @@ export default function Personality() {
           <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
             开始
           </button>
+          <Link to="/" className="block w-full mt-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-center">
+            ← 返回投递首页
+          </Link>
         </form>
       </Page>
     )
