@@ -346,8 +346,76 @@ INSERT INTO questions_skill (id, position_id, question, options, answer) VALUES
 ### 3.1 访问 HR 后台
 
 - **URL**：https://campusrecruitment.vercel.app/hr
-- **密码**：`VITE_HR_PASSWORD`（IT 设的，问 IT 要；当前本地环境 = `siliane0609`）
+- **登录**：用**用户名 + 密码**（不再是单一密码）。默认管理员：`admin` / `Admin@2026`
 - **推荐入口**：首页底部"🛠 中南创发校招HR管理后台"链接
+
+### 3.1.1 HR 用户与权限组（RBAC）
+
+HR 后台采用**基于分组的访问控制**（Group-based RBAC），每个登录用户属于一个组，组决定可见数据范围与可写操作。
+
+#### 7 个组（migration 0009 种子）
+
+| 组 id | 组名 | 可见数据 | 可写操作 | 备注 |
+|---|---|---|---|---|
+| `group_admin` | 集团管理员 | 全部 | 全部 | 可访问 `/hr/admin/users` 管账号 |
+| `company_changlian_metal` | 昶联金属 HR | 仅昶联金属 | 改状态、发通知 | 重复投递可见其它公司+岗位 |
+| `company_zhongnan_jicheng` | 中南机诚 HR | 仅中南机诚 | 改状态、发通知 | 同上 |
+| `company_zhongnan_zhicheng` | 中南智诚 HR | 仅中南智诚 | 改状态、发通知 | 同上 |
+| `company_yingshuo_laser` | 英硕激光 HR | 仅英硕激光 | 改状态、发通知 | 同上 |
+| `company_zhongnan_yayuan` | 中南雅园 HR | 仅中南雅园 | 改状态、发通知 | 同上 |
+| `default` | 默认分组 | 全部 | **只读**（无法改状态、不能发通知） | 权限待具体分配 |
+
+> **公司组的"重复投递"行为**：当某行的手机号 = 重复手机号时，HR 后台列表显示橙色"重复投递"徽章 + 下方列出**该手机号投过的其它公司+岗位**（帮助 HR 判断是否代投 / 跨公司抢人）。
+
+#### 表结构
+
+- `hr_groups` (id, name, company_id, created_at) — 7 行
+- `hr_users` (id, username UNIQUE, password_hash, display_name, group_id, created_at) — 账号
+
+#### 默认账号
+
+| 用户名 | 密码 | 组 | 说明 |
+|---|---|---|---|
+| `admin` | `Admin@2026` | `group_admin` | **首次登录后立刻改密码** |
+
+其他账号通过 **`/hr/admin/users`** 页面创建（仅 admin 可访问）。
+
+#### 密码存储
+
+客户端用 **SHA-256 + 用户名做盐** 哈希（`lib/crypto.ts`），存进 `password_hash` 列。
+**生产化前必须**改为 Supabase Auth + 服务端 bcrypt（明文传输期也是临时的，仅靠 TLS 保护）。
+详见 `docs/security.md` 的 RBAC 章节。
+
+#### 创建新公司账号（admin 操作）
+
+1. 登录 admin → 落地页底部有 **👥 用户管理** 入口
+2. 进 `/hr/admin/users` → 点 **+ 新建账号**
+3. 填：
+   - **用户名**（登录用，唯一）
+   - **显示名**（HR 后台显示）
+   - **密码**（≥6 位）
+   - **分组**（下拉选 7 个组之一）
+4. 提交 → 列表刷新
+
+> 同一个公司可以创建多个账号——但每个账号看到的"该公司数据"是相同的。
+
+#### 给某账号改密码
+
+当前 UI **不支持**——必须 IT 在 Supabase SQL Editor 跑：
+
+```sql
+-- 重置某个用户的密码为 'NewPwd@2026'：
+WITH salt AS (SELECT 'campus_recruit_v1_<username>' AS s)
+UPDATE hr_users
+SET password_hash = encode(digest((SELECT s FROM salt) || 'NewPwd@2026', 'sha256'), 'hex')
+WHERE username = '<username>';
+```
+
+（推荐：让 IT 写一个一键 `reset-password.sql` 脚本占位。）
+
+#### 删除账号
+
+`/hr/admin/users` 列表行尾 **删除** 按钮（不能删自己）。
 
 ### 3.2 HR 后台布局
 

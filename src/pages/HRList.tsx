@@ -2,13 +2,36 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { supabase } from '../lib/supabase'
-import { fetchAllPositions, fetchCompanies, fetchDuplicatePhones, type PositionRow } from '../lib/loaders'
+import { fetchAllPositions, fetchCompanies, fetchDuplicatePhones, fetchCrossCompanyContext, type PositionRow, type CrossCompanyRow } from '../lib/loaders'
 import { useAsync } from '../hooks/useAsync'
 import { companyColor } from '../lib/companies'
-import type { SubmissionStatus } from '../lib/types'
+import type { HrScope, SubmissionStatus, HrGroup } from '../lib/types'
 import { SUBMISSION_STATUS_LABEL } from '../lib/types'
 
-const HR_SESSION_KEY = 'hr_authed'
+const HR_AUTH_KEY = 'hr_auth'
+
+interface AuthRecord {
+  user: { id: string; group_id: string }
+  group: HrGroup | null
+}
+
+function readAuth(): (AuthRecord & { scope: HrScope }) | null {
+  try {
+    const raw = sessionStorage.getItem(HR_AUTH_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as AuthRecord
+    const scope: HrScope = !parsed.group
+      ? { kind: 'default' }
+      : parsed.group.id === 'group_admin'
+      ? { kind: 'admin' }
+      : parsed.group.id.startsWith('company_') && parsed.group.company_id
+      ? { kind: 'company', companyId: parsed.group.company_id, companyName: parsed.group.name }
+      : { kind: 'default' }
+    return { ...parsed, scope }
+  } catch {
+    return null
+  }
+}
 
 interface SubmissionRow {
   id: string
@@ -44,6 +67,9 @@ export default function HRList() {
 
   const [mbtiByPhone, setMbtiByPhone] = useState<Record<string, string>>({})
   const [skillByPhonePos, setSkillByPhonePos] = useState<Record<string, { score: number; total: number }>>({})
+  // Cross-company context for repeated phones (visible only to admins + the
+  // originating company group; default-group also gets it).
+  const [crossCtx, setCrossCtx] = useState<Record<string, CrossCompanyRow[]>>({})
 
   const companiesAsync = useAsync(fetchCompanies, [])
   const positionsAsync = useAsync(fetchAllPositions, [])
@@ -63,14 +89,24 @@ export default function HRList() {
   const fetchRows = async () => {
     if (!supabase) return
     setLoading(true)
+
+    // Apply scope filter: admin sees everything, company group sees only their
+    // company's submissions, default group also sees everything (read-only).
+    const auth = readAuth()
+    if (!auth) return
+    const companyFilter = auth.scope.kind === 'company' ? auth.scope.companyId : null
+
+    let query = supabase
+      .from('submissions')
+      .select(`
+        id, status, channel, notes, created_at, updated_at, resume_id, position_id, company_id,
+        resume:resumes ( id, student_name, phone, major, university, degree, file_url, file_name )
+      `)
+      .order('created_at', { ascending: false })
+    if (companyFilter) query = query.eq('company_id', companyFilter)
+
     const [{ data, error }, persRes, skillRes] = await Promise.all([
-      supabase
-        .from('submissions')
-        .select(`
-          id, status, channel, notes, created_at, updated_at, resume_id, position_id, company_id,
-          resume:resumes ( id, student_name, phone, major, university, degree, file_url, file_name )
-        `)
-        .order('created_at', { ascending: false }),
+      query,
       supabase
         .from('personality_results')
         .select('phone, mbti_type, created_at')
@@ -101,11 +137,26 @@ export default function HRList() {
       }
       setSkillByPhonePos(s)
     }
+
+    // For companies that have duplicate phones, fetch cross-company context
+    // (one fetch per duplicated phone). Skipped for default-group users in
+    // the future — for now it's harmless overhead.
+    const dupes = (normalized ?? []).filter((r) => r.resume?.phone)
+    const uniqPhones = Array.from(new Set(dupes.map((r) => r.resume!.phone)))
+    const ctxMap: Record<string, CrossCompanyRow[]> = {}
+    await Promise.all(uniqPhones.map(async (phone) => {
+      const exclude = auth.scope.kind === 'company' ? auth.scope.companyId : null
+      const rows = await fetchCrossCompanyContext(phone, exclude)
+      if (rows.length > 0) ctxMap[phone] = rows
+    }))
+    setCrossCtx(ctxMap)
     setLoading(false)
   }
 
   useEffect(() => {
-    if (sessionStorage.getItem(HR_SESSION_KEY) !== 'true') {
+    // Auth gate — admin or company-group. Default group is read-only.
+    const auth = readAuth()
+    if (!auth) {
       navigate('/hr', { replace: true })
       return
     }
@@ -134,24 +185,42 @@ export default function HRList() {
 
   const updateStatus = async (id: string, status: SubmissionStatus) => {
     if (!supabase) return
+    const auth = readAuth()
+    if (auth?.scope.kind === 'default') {
+      alert('默认分组只有只读权限，无法改状态')
+      return
+    }
     const { error } = await supabase.from('submissions').update({ status }).eq('id', id)
     if (error) { alert('更新失败：' + error.message); return }
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)))
   }
 
+  const auth = readAuth()
+  const scope = auth?.scope ?? null
+  const isReadOnly = scope?.kind === 'default'
+
   return (
     <Page title="投递简历列表">
       {/* Filters */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <select value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}
-          className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm">
-          <option value="all">应聘公司（全部）</option>
-          {(companiesAsync.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        {scope?.kind !== 'company' && (
+          <select value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}
+            className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm">
+            <option value="all">应聘公司（全部）</option>
+            {(companiesAsync.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
+        {scope?.kind === 'company' && (
+          <span className="px-3 py-1.5 bg-blue-50 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 rounded-lg text-sm font-medium">
+            🏢 仅看 {scope.companyName}
+          </span>
+        )}
         <select value={filterPos} onChange={(e) => setFilterPos(e.target.value)}
           className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm">
           <option value="all">职位（全部）</option>
-          {(positionsAsync.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+          {(positionsAsync.data ?? [])
+            .filter((p) => scope?.kind !== 'company' || p.id.startsWith(`${scope.companyId}-`))
+            .map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
         </select>
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}
           className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm">
@@ -174,6 +243,12 @@ export default function HRList() {
         </button>
         <span className="text-sm text-slate-500 dark:text-slate-400">共 {filtered.length} 条</span>
       </div>
+
+      {isReadOnly && (
+        <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm px-3 py-2 rounded-lg mb-3">
+          ⚠ 默认分组：当前为只读模式，无法修改状态或发送通知
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-x-auto">
@@ -214,6 +289,16 @@ export default function HRList() {
                       <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300">
                         重复投递
                       </span>
+                    )}
+                    {isDuplicate && phone && crossCtx[phone] && crossCtx[phone].length > 0 && (
+                      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        <span className="block">其它投递：</span>
+                        {crossCtx[phone].map((x) => (
+                          <span key={x.position_id} className="block">
+                            · {x.company_name} — {x.position_title}
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">

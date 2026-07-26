@@ -83,6 +83,37 @@ export interface NotificationRow {
   created_at: string
 }
 
+export interface HrGroup {
+  id: string
+  name: string
+  company_id: string | null
+  created_at: string
+}
+
+export interface HrUser {
+  id: string
+  username: string
+  display_name: string | null
+  group_id: string
+  created_at: string
+}
+
+/**
+ * Effective access scope for the current HR session.
+ *
+ *   group_admin             → see everything, edit everything
+ *   company_<companyId>     → see only submissions for that company; on
+ *                              duplicate rows, also see cross-company context
+ *                              (which other companies/positions the phone
+ *                              applied to)
+ *   default                 → read-only across all companies (pending
+ *                              detailed permission assignment)
+ */
+export type HrScope =
+  | { kind: 'admin' }
+  | { kind: 'company'; companyId: string; companyName: string }
+  | { kind: 'default' }
+
 export interface PersonalityResult {
   id: string
   phone: string

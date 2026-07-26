@@ -5,8 +5,25 @@ import { EChart } from '../components/EChart'
 import { supabase } from '../lib/supabase'
 import { fetchCompanies, fetchAllPositions, fetchDuplicatePhones } from '../lib/loaders'
 import { useAsync } from '../hooks/useAsync'
+import type { HrScope, HrGroup } from '../lib/types'
 
-const HR_SESSION_KEY = 'hr_authed'
+const HR_AUTH_KEY = 'hr_auth'
+
+function readScope(): HrScope | null {
+  try {
+    const raw = sessionStorage.getItem(HR_AUTH_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { group: HrGroup | null }
+    if (!parsed.group) return { kind: 'default' }
+    if (parsed.group.id === 'group_admin') return { kind: 'admin' }
+    if (parsed.group.id.startsWith('company_') && parsed.group.company_id) {
+      return { kind: 'company', companyId: parsed.group.company_id, companyName: parsed.group.name }
+    }
+    return { kind: 'default' }
+  } catch {
+    return null
+  }
+}
 
 interface Row {
   position_id: string
@@ -36,17 +53,21 @@ export default function HRDashboard() {
   const companies = companiesAsync.data ?? []
   const dupePhonesAsync = useAsync(fetchDuplicatePhones, [])
 
+  const scope = useMemo(() => readScope(), [])
+
   useEffect(() => {
-    if (sessionStorage.getItem(HR_SESSION_KEY) !== 'true') {
+    if (!scope) {
       navigate('/hr', { replace: true })
       return
     }
     if (!supabase) return
     setLoading(true)
     void (async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('submissions')
         .select('position_id, status, company_id, resume:resumes ( phone, major, university, degree )')
+      if (scope.kind === 'company') query = query.eq('company_id', scope.companyId)
+      const { data, error } = await query
       if (error) { alert('加载失败：' + error.message); setLoading(false); return }
       const normalized = ((data ?? []) as any[]).map((d) => ({
         position_id: d.position_id,
@@ -57,7 +78,7 @@ export default function HRDashboard() {
       setRows(normalized)
       setLoading(false)
     })()
-  }, [navigate])
+  }, [navigate, scope])
 
   useEffect(() => {
     if (typeof window === 'undefined') return

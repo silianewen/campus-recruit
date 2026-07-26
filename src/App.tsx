@@ -13,6 +13,7 @@ import { ConfigBanner } from './components/ConfigBanner'
 
 // HRDashboard embeds ECharts — lazy-load it to keep the main bundle small.
 const HRDashboard = lazy(() => import('./pages/HRDashboard'))
+const HRAdminUsers = lazy(() => import('./pages/HRAdminUsers'))
 
 function Loading() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="/hr" element={<HR />} />
           <Route path="/hr/list" element={<HRList />} />
           <Route path="/hr/dashboard" element={<HRDashboard />} />
+          <Route path="/hr/admin/users" element={<HRAdminUsers />} />
 
           {/* Defensive legacy redirects — old HR routes now live under /hr/* */}
           <Route path="/dashboard" element={<Navigate to="/hr/list" replace />} />

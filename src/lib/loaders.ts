@@ -6,7 +6,7 @@
 // See: openspec/changes/post-mvp-cleanup-and-dark-theme/specs/data-loaders/spec.md
 
 import { supabase } from './supabase'
-import type { Company, SkillQuestion } from './types'
+import type { Company, HrGroup, HrUser, SkillQuestion } from './types'
 
 export interface PositionRow {
   id: string
@@ -125,6 +125,111 @@ export async function fetchDuplicatePhones(): Promise<string[]> {
     counts.set(r.phone, (counts.get(r.phone) ?? 0) + 1)
   }
   return Array.from(counts.entries()).filter(([, n]) => n > 1).map(([p]) => p)
+}
+
+/**
+ * For a duplicated phone, list every (company, position) the phone also
+ * submitted to — EXCLUDING the current row's own company. Used by company-
+ * scoped HR users to see cross-company context for a flagged duplicate.
+ *
+ * Returns a list of `{ companyId, companyName, positionId, positionTitle }`.
+ * When invoked by an admin (scope.kind === 'admin') the exclusion is None
+ * so they see the full picture.
+ */
+export interface CrossCompanyRow {
+  company_id: string
+  company_name: string
+  position_id: string
+  position_title: string
+  resume_id: string
+}
+
+export async function fetchCrossCompanyContext(
+  phone: string,
+  excludeCompanyId: string | null,
+): Promise<CrossCompanyRow[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('resumes')
+    .select(`
+      id, company_id, position_id,
+      company:companies ( id, name ),
+      position:positions ( id, title )
+    `)
+    .eq('phone', phone)
+  if (error) throw error
+  return (data ?? [])
+    .map((r: any) => ({
+      resume_id: r.id,
+      company_id: r.company?.id ?? r.company_id,
+      company_name: r.company?.name ?? '',
+      position_id: r.position?.id ?? r.position_id,
+      position_title: r.position?.title ?? '',
+    }))
+    .filter((r) => !excludeCompanyId || r.company_id !== excludeCompanyId)
+}
+
+// =========================================================================
+// HR auth + user/group loaders
+// =========================================================================
+
+export async function loginHrUser(username: string, passwordHash: string): Promise<HrUser | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase
+    .from('hr_users')
+    .select('id, username, display_name, group_id, created_at')
+    .eq('username', username)
+    .eq('password_hash', passwordHash)
+    .maybeSingle()
+  if (error) throw error
+  return (data ?? null) as HrUser | null
+}
+
+export async function fetchHrGroups(): Promise<HrGroup[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('hr_groups')
+    .select('id, name, company_id, created_at')
+    .order('id')
+  if (error) throw error
+  return (data ?? []) as HrGroup[]
+}
+
+export async function fetchHrUsers(): Promise<HrUser[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from('hr_users')
+    .select('id, username, display_name, group_id, created_at')
+    .order('username')
+  if (error) throw error
+  return (data ?? []) as HrUser[]
+}
+
+export async function createHrUser(input: {
+  username: string
+  passwordHash: string
+  displayName: string | null
+  groupId: string
+}): Promise<HrUser | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase
+    .from('hr_users')
+    .insert({
+      username: input.username,
+      password_hash: input.passwordHash,
+      display_name: input.displayName,
+      group_id: input.groupId,
+    })
+    .select('id, username, display_name, group_id, created_at')
+    .single()
+  if (error) throw error
+  return data as HrUser
+}
+
+export async function deleteHrUser(id: string): Promise<void> {
+  if (!supabase) return
+  const { error } = await supabase.from('hr_users').delete().eq('id', id)
+  if (error) throw error
 }
 
 export async function fetchQuestionsForPosition(positionId: string): Promise<SkillQuestion[]> {
