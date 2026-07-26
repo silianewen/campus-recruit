@@ -22,10 +22,21 @@ export default function HR() {
   if (!authed) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center px-4">
-        {/* Top bar with logo (left), back (right-aligned with toggle) */}
+        {/* Top bar: logo (left) · back button + theme toggle (right) */}
         <div className="fixed top-0 left-0 right-0 px-4 py-3 flex items-center justify-between pointer-events-none">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold text-xl shadow-md pointer-events-auto" aria-label="中南创发集团 logo 占位">中</div>
+          <div
+            className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold text-xl shadow-md pointer-events-auto"
+            aria-label="中南创发集团 logo 占位"
+          >
+            中
+          </div>
           <div className="flex items-center gap-2 pointer-events-auto">
+            <button
+              onClick={goBack}
+              className="px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 pointer-events-auto"
+            >
+              ← 返回上一页
+            </button>
             <ThemeToggle />
           </div>
         </div>
@@ -72,7 +83,7 @@ export default function HR() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
       <div className="max-w-4xl mx-auto px-4 py-8">
 
-        {/* Top bar: logo (left) · back button + theme toggle + logout (right) */}
+        {/* Top bar: logo (left) · "回到学生投递平台" + theme toggle + logout (right) */}
         <div className="flex items-center justify-between mb-6">
           <div
             className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold text-2xl shadow-md"
@@ -82,10 +93,10 @@ export default function HR() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={goBack}
+              onClick={() => navigate('/')}
               className="px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
             >
-              ← 返回上一页
+              ← 返回学生投递平台
             </button>
             <ThemeToggle />
             <button
