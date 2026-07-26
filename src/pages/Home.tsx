@@ -59,27 +59,6 @@ export default function Home() {
           <p className="text-sm text-slate-500 dark:text-slate-400 italic">集团简介待补充</p>
         </section>
 
-        {/* Filter dropdown — selecting a company navigates to its detail page */}
-        <section className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 mb-6">
-          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            按公司筛选
-          </label>
-          <select
-            value=""
-            onChange={(e) => {
-              const v = e.target.value
-              if (v) navigate(`/companies/${v}`)
-            }}
-            disabled={companiesAsync.loading}
-            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-          >
-            <option value="">— 选择公司查看岗位 —</option>
-            {(companiesAsync.data ?? []).map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </section>
-
         {/* Company cards — click navigates to /companies/:id (positions live there) */}
         <AsyncView
           data={companiesAsync.data}

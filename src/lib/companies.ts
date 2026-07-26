@@ -23,3 +23,16 @@ export function companyColor(id: string): string {
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0
   return COLORS[h % COLORS.length]
 }
+
+// Short display names — used in headers/sidebars where space is limited.
+// Falls back to the full company id for unknown ids.
+const SHORT_NAMES: Record<string, string> = {
+  changlian_metal:    '昶联',
+  zhongnan_jicheng:   '中南机诚',
+  zhongnan_zhicheng:  '中南智诚',
+  yingshuo_laser:     '英硕激光',
+  zhongnan_yayuan:    '中南雅园',
+}
+export function companyShortName(id: string): string {
+  return SHORT_NAMES[id] ?? id
+}

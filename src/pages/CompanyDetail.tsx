@@ -3,7 +3,7 @@ import { Page } from '../components/Page'
 import { useAsync } from '../hooks/useAsync'
 import { AsyncView } from '../components/AsyncView'
 import { fetchCompany, fetchPositionsForCompany, type PositionRow } from '../lib/loaders'
-import { companyColor, isCompanyId } from '../lib/companies'
+import { companyColor, companyShortName, isCompanyId } from '../lib/companies'
 import { isPositionId } from '../lib/positions'
 
 export default function CompanyDetail() {
@@ -19,24 +19,25 @@ export default function CompanyDetail() {
 
   if (!validId) {
     return (
-      <Page title="公司详情" backTo="/" backLabel="返回学生投递平台">
+      <Page title="公司详情" backTo="/" backLabel="返回投递首页">
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center text-slate-600 dark:text-slate-300">
           <p className="mb-4">无效的公司链接。</p>
-          <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline">← 返回学生投递平台</Link>
+          <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline">← 返回投递首页</Link>
         </div>
       </Page>
     )
   }
 
   const company = companyAsync.data
+  const headerTitle = companyShortName(validId) // 简称放头部
   const companyName = company?.name ?? validId
 
   return (
     <Page
-      title={companyName}
-      subtitle="公司详情 · 在招岗位"
+      title={headerTitle}
+      subtitle={companyName}
       backTo="/"
-      backLabel="返回学生投递平台"
+      backLabel="返回投递首页"
     >
       <AsyncView
         data={company}

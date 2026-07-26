@@ -2,8 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { supabase } from '../lib/supabase'
-import { companyColor } from '../lib/companies'
-import { isCompanyId } from '../lib/companies'
+import { companyColor, isCompanyId } from '../lib/companies'
 import { isPositionId } from '../lib/positions'
 import {
   fetchCompanies,
@@ -29,6 +28,7 @@ export default function SkillTest() {
   const directEntry = !!(companyId && positionId)
 
   const [phone, setPhone] = useState('')
+  const [filterCompany, setFilterCompany] = useState<string>('')  // "" = all companies
   const [started, setStarted] = useState(false)
   const [idx, setIdx] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string>>({})
@@ -81,6 +81,13 @@ export default function SkillTest() {
     }
     return m
   }, [companiesAsync.data, allPositionsAsync.data])
+
+  // Apply the company filter to the picker: empty = all companies, otherwise
+  // show only positions under the selected company.
+  const filteredCompanies: Company[] = useMemo(() => {
+    if (!filterCompany) return companiesAsync.data ?? []
+    return (companiesAsync.data ?? []).filter((c) => c.id === filterCompany)
+  }, [companiesAsync.data, filterCompany])
 
   const startQuiz = (e: React.FormEvent) => {
     e.preventDefault()
@@ -137,6 +144,24 @@ export default function SkillTest() {
     const loading = companiesAsync.loading || allPositionsAsync.loading
     return (
       <Page title="专业能力测试" subtitle="选择一家公司和对应岗位开始测试（5 道题，约 5 分钟）">
+        {/* Filter row: company (empty = all) */}
+        <section className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 mb-6">
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            按公司筛选
+          </label>
+          <select
+            value={filterCompany}
+            onChange={(e) => setFilterCompany(e.target.value)}
+            disabled={loading}
+            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+          >
+            <option value="">— 全部公司 —</option>
+            {(companiesAsync.data ?? []).map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </section>
+
         <AsyncView
           data={companiesAsync.data}
           loading={loading}
@@ -151,7 +176,7 @@ export default function SkillTest() {
         >
           {() => (
             <div className="space-y-6">
-              {companiesAsync.data?.map((c: Company) => {
+              {filteredCompanies.map((c: Company) => {
                 const positions = positionsByCompanyId[c.id] ?? []
                 if (positions.length === 0) return null
                 return (
