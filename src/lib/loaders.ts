@@ -87,6 +87,18 @@ export async function fetchCompanyName(companyId: string): Promise<string | null
   return (data?.name as string | undefined) ?? null
 }
 
+/** Full company record (id, name, description, logo_url). Used by CompanyDetail. */
+export async function fetchCompany(companyId: string): Promise<Company | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase
+    .from('companies')
+    .select('id, name, description, logo_url')
+    .eq('id', companyId)
+    .maybeSingle()
+  if (error) throw error
+  return (data ?? null) as Company | null
+}
+
 export async function fetchQuestionsForPosition(positionId: string): Promise<SkillQuestion[]> {
   if (!supabase) return []
   const { data, error } = await supabase

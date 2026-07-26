@@ -158,6 +158,8 @@ export default function Upload() {
     <Page
       title={`投递：${posTitle}`}
       subtitle={`公司：${compTitle} · 岗位：${posTitle}`}
+      backTo={companyId ? `/companies/${companyId}` : undefined}
+      backLabel="返回公司详情"
     >
       <AsyncView
         data={posAsync.data}

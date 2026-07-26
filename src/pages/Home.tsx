@@ -1,42 +1,26 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
-import {
-  fetchCompanies,
-  fetchPositionsForCompany,
-  fetchAllPositions,
-  type PositionRow,
-} from '../lib/loaders'
+import { useMemo } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { fetchCompanies, fetchAllPositions } from '../lib/loaders'
 import { useAsync } from '../hooks/useAsync'
 import { AsyncView } from '../components/AsyncView'
 import { companyColor } from '../lib/companies'
 import { ThemeToggle } from '../components/ThemeToggle'
-import type { Company } from '../lib/types'
 
 export default function Home() {
-  const [selectedCompany, setSelectedCompany] = useState<string | null>(null)
+  const navigate = useNavigate()
 
   const companiesAsync = useAsync(fetchCompanies, [])
   const allPositionsAsync = useAsync(fetchAllPositions, [])
-  const companyPositionsAsync = useAsync<PositionRow[]>(
-    () => selectedCompany ? fetchPositionsForCompany(selectedCompany) : Promise.resolve([]),
-    [selectedCompany]
-  )
 
-  const companiesById: Record<string, Company> = useMemo(() => {
-    const m: Record<string, Company> = {}
-    for (const c of companiesAsync.data ?? []) m[c.id] = c
-    return m
-  }, [companiesAsync.data])
-
-  const positionsByCompanyId = useMemo<Record<string, PositionRow[]>>(() => {
-    const m: Record<string, PositionRow[]> = {}
-    for (const c of companiesAsync.data ?? []) m[c.id] = []
+  // Count positions per company for the "X 个岗位" badge on each card.
+  const positionCountByCompanyId = useMemo<Record<string, number>>(() => {
+    const m: Record<string, number> = {}
+    for (const c of companiesAsync.data ?? []) m[c.id] = 0
     for (const p of allPositionsAsync.data ?? []) {
       const dashIdx = p.id.indexOf('-')
       if (dashIdx <= 0) continue
       const cid = p.id.slice(0, dashIdx)
-      if (!m[cid]) m[cid] = []
-      m[cid].push(p)
+      m[cid] = (m[cid] ?? 0) + 1
     }
     return m
   }, [companiesAsync.data, allPositionsAsync.data])
@@ -45,10 +29,7 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
       <div className="max-w-6xl mx-auto px-4 py-8">
 
-        {/* ============================================================
-            Top bar — logo (top-left) · theme toggle (top-right).
-            Title + tagline rendered CENTERED below.
-           ============================================================ */}
+        {/* Top bar — logo (top-left) · theme toggle (top-right) */}
         <div className="flex items-center justify-between mb-6">
           <div
             className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold text-2xl shadow-md"
@@ -59,166 +40,86 @@ export default function Home() {
           <ThemeToggle />
         </div>
 
-        {/* Title + tagline, centered */}
+        {/* Centered title */}
         <div className="text-center mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100">
             中南创发校招投递平台
           </h1>
-          <p className="text-base sm:text-lg text-slate-500 dark:text-slate-400 mt-2">
+          <p className="text-base sm:text-base text-slate-500 dark:text-slate-400 mt-2">
             扫码投递 · 在线测评 · 实时跟踪状态
           </p>
         </div>
 
-        {/* ============================================================
-            中南创发集团简介 (placeholder; user will provide copy later)
-           ============================================================ */}
+        {/* 中南创发集团简介 */}
         <section className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 mb-6">
           <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-2">
             <span className="inline-block w-1.5 h-4 rounded-sm bg-blue-500" />
             中南创发集团简介
           </h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400 italic">
-            集团简介待补充
-          </p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 italic">集团简介待补充</p>
         </section>
 
-        {/* ============================================================
-            Filter row: single company dropdown
-           ============================================================ */}
+        {/* Filter dropdown — selecting a company navigates to its detail page */}
         <section className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 mb-6">
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
             按公司筛选
           </label>
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              value={selectedCompany ?? ''}
-              onChange={(e) => setSelectedCompany(e.target.value || null)}
-              disabled={companiesAsync.loading}
-              className="flex-1 min-w-60 px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-            >
-              <option value="">— 全部公司 —</option>
-              {(companiesAsync.data ?? []).map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            {selectedCompany && (
-              <button
-                onClick={() => setSelectedCompany(null)}
-                className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-              >
-                清除筛选
-              </button>
-            )}
-          </div>
+          <select
+            value=""
+            onChange={(e) => {
+              const v = e.target.value
+              if (v) navigate(`/companies/${v}`)
+            }}
+            disabled={companiesAsync.loading}
+            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+          >
+            <option value="">— 选择公司查看岗位 —</option>
+            {(companiesAsync.data ?? []).map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
         </section>
 
-        {/* ============================================================
-            All-companies view (no filter) — each company shows intro + positions
-           ============================================================ */}
-        {!selectedCompany && (
-          <AsyncView
-            data={companiesAsync.data}
-            loading={companiesAsync.loading}
-            error={companiesAsync.error}
-            refetch={companiesAsync.refetch}
-            isEmpty={(d) => d.length === 0}
-            empty={
-              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-10 text-center text-slate-500 dark:text-slate-400">
-                公司列表尚未配置。
-              </div>
-            }
-          >
-            {() => (
-              <section className="space-y-6 mb-6">
-                {(companiesAsync.data ?? []).map((c) => {
-                  const positions = positionsByCompanyId[c.id] ?? []
-                  return (
-                    <div key={c.id} className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                          <span className={`inline-block w-2 h-2 rounded-full ${companyColor(c.id)}`} />
-                          {c.name}
-                        </h3>
-                        <span className="text-xs text-slate-400 dark:text-slate-500">{positions.length} 个岗位</span>
-                      </div>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 italic mb-4">
-                        {c.description?.trim() ? c.description : '公司简介待补充'}
-                      </p>
-                      {positions.length === 0 ? (
-                        <p className="text-sm text-slate-400 dark:text-slate-500 italic">暂无在招岗位</p>
-                      ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {positions.map((p) => (
-                            <Link
-                              key={p.id}
-                              to={`/upload?company=${c.id}&position=${p.id}`}
-                              className="block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500 transition"
-                            >
-                              <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">{p.category ?? '—'}</div>
-                              <div className="font-medium text-slate-900 dark:text-slate-100">{p.title}</div>
-                              <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">点击投递 →</div>
-                            </Link>
-                          ))}
-                        </div>
-                      )}
+        {/* Company cards — click navigates to /companies/:id (positions live there) */}
+        <AsyncView
+          data={companiesAsync.data}
+          loading={companiesAsync.loading}
+          error={companiesAsync.error}
+          refetch={companiesAsync.refetch}
+          isEmpty={(d) => d.length === 0}
+          empty={
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-10 text-center text-slate-500 dark:text-slate-400">
+              公司列表尚未配置。
+            </div>
+          }
+        >
+          {() => (
+            <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              {(companiesAsync.data ?? []).map((c) => {
+                const count = positionCountByCompanyId[c.id] ?? 0
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => navigate(`/companies/${c.id}`)}
+                    className="text-left bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500 transition"
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className={`inline-block w-2 h-2 rounded-full ${companyColor(c.id)}`} />
+                      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{c.name}</h3>
+                      <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto">{count} 个岗位</span>
                     </div>
-                  )
-                })}
-              </section>
-            )}
-          </AsyncView>
-        )}
+                    <p className="text-sm text-slate-500 dark:text-slate-400 italic line-clamp-3 mb-2 min-h-12">
+                      {c.description?.trim() ? c.description : '公司简介待补充'}
+                    </p>
+                    <div className="text-sm text-blue-600 dark:text-blue-400">查看岗位 →</div>
+                  </button>
+                )
+              })}
+            </section>
+          )}
+        </AsyncView>
 
-        {/* ============================================================
-            Single-company view (filter set) — same intro + positions, scoped
-           ============================================================ */}
-        {selectedCompany && (
-          <section className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 mb-6">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-2">
-              <span className={`inline-block w-2 h-2 rounded-full ${companyColor(selectedCompany)}`} />
-              {companiesById[selectedCompany]?.name ?? selectedCompany}
-            </h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 italic mb-4">
-              {companiesById[selectedCompany]?.description?.trim()
-                ? companiesById[selectedCompany]!.description
-                : '公司简介待补充'}
-            </p>
-
-            <AsyncView
-              data={companyPositionsAsync.data}
-              loading={companyPositionsAsync.loading}
-              error={companyPositionsAsync.error}
-              refetch={companyPositionsAsync.refetch}
-              isEmpty={(d) => d.length === 0}
-              empty={
-                <p className="text-sm text-slate-500 dark:text-slate-400 italic">该公司暂无在招岗位</p>
-              }
-            >
-              {(positions: PositionRow[]) => (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {positions.map((p) => (
-                    <Link
-                      key={p.id}
-                      to={`/upload?company=${selectedCompany}&position=${p.id}`}
-                      className="block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500 transition"
-                    >
-                      <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">
-                        {p.category ?? '—'}
-                      </div>
-                      <div className="font-semibold text-slate-900 dark:text-slate-100">{p.title}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{p.description}</div>
-                      <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">点击投递 →</div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </AsyncView>
-          </section>
-        )}
-
-        {/* ============================================================
-            Bottom — assessment + status + HR entry
-           ============================================================ */}
+        {/* Bottom — assessment + status */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <Link to="/personality" className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 hover:shadow-md transition">
             <div className="text-2xl mb-2">🧠</div>

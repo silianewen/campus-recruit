@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Home from './pages/Home'
+import CompanyDetail from './pages/CompanyDetail'
 import Upload from './pages/Upload'
 import Success from './pages/Success'
 import HR from './pages/HR'
@@ -29,6 +30,7 @@ export default function App() {
         <Routes>
           {/* Student */}
           <Route path="/" element={<Home />} />
+          <Route path="/companies/:companyId" element={<CompanyDetail />} />
           <Route path="/upload" element={<Upload />} />
           <Route path="/upload/:positionId" element={<Upload />} />
           <Route path="/success/:submissionId" element={<Success />} />
