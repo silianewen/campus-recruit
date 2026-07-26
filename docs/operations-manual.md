@@ -307,12 +307,6 @@ INSERT INTO questions_skill (id, position_id, question, options, answer) VALUES
   ('new-key-1', 'changlian_metal-procurement-specialist', '新题目', '[{"key":"A","text":"选项1"},...]', 'A');
 ```
 
-#### 修改 HR 密码
-
-Vercel Dashboard → Project → Settings → Environment Variables → 修改 `VITE_HR_PASSWORD` → 重新 deploy。
-
-或者修改 `.env.local`（本地）+ 跑 `scripts/set-env-secure.ps1`（交互式，本地用）。
-
 ### 2.8 常见故障
 
 | 现象 | 原因 | 修法 |
@@ -507,49 +501,7 @@ HR 没有任何前端维护界面——所有数据改动通过 **Supabase Dashb
 | 状态选项想加新值 | IT 改：`ALTER TYPE` / 改 `SUBMISSION_STATUS_LABEL` + 改数据库 CHECK constraint |
 | 误删了一条数据 | Supabase → Table Editor → 行级 history 可能恢复；最坏情况 IT 从备份恢复 |
 | 想批量导出 | Supabase → SQL Editor：`SELECT * FROM submissions;` → 下载 CSV |
-
-### 3.8 修改 HR 后台登录密码
-
-HR 密码是环境变量 `VITE_HR_PASSWORD`，**分两处**：本地 `.env.local` + 生产 Vercel Dashboard。改完一处记得同步改另一处。
-
-#### 修改生产环境的密码（Vercel）
-
-1. 打开 https://vercel.com/dashboard → 找到 `campus-recruit` 项目
-2. 进入 **Settings** → **Environment Variables**
-3. 在列表里找到 `VITE_HR_PASSWORD` 这一行
-4. 点该行右侧的 **⋮** 菜单（或直接点值）→ 编辑
-5. 把值改成新密码（建议：≥10 位，包含字母+数字+符号）
-6. 点 **Save** 保存
-
-> ⚠️ **改完 Vercel env 不会自动重新部署**——你需要手动触发一次：
-> - 进入 **Deployments** 页面 → 找到最新一条部署
-> - 右侧 **⋮** → **Redeploy**
-> - 等 1-2 分钟，新密码生效
-
-#### 修改本地开发环境的密码（`.env.local`）
-
-1. 打开 `c:/study/campus_recruitment/.env.local`（任意文本编辑器）
-2. 找到这一行：
-   ```
-   VITE_HR_PASSWORD=siliane0609
-   ```
-3. 把 `siliane0609` 改成新密码
-4. 保存文件
-5. 如果 `npm run dev` 还在跑，按 **Ctrl+C** 停掉 → 重新 `npm run dev`
-6. 新密码生效
-
-#### 推荐：用交互脚本改本地密码（不进对话历史）
-
-```powershell
-cd "c:/study/campus_recruitment"
-powershell -ExecutionPolicy Bypass -File scripts/set-env-secure.ps1
-```
-
-终端会提示输入 3 个值（URL / anon key / **新 HR 密码**）。**值都只在你的终端输入，不进入对话或 git 历史**。
-
-#### 把新密码告诉 HR 团队
-
-> ⚠️ 不要把新密码贴到对话里。如果只是你自己用，直接登录测试即可；如果是团队协作，建议用 1Password / Bitwarden 等工具共享，不要明文发消息。
+| 改 HR 登录密码 | 暂未支持 UI 修改流程——让 IT 在 Vercel Dashboard 改 `VITE_HR_PASSWORD` env + Redeploy |
 
 ---
 
@@ -599,6 +551,37 @@ SELECT position_id, ROUND(AVG(score::numeric / total * 100), 1) AS avg_pct, COUN
 FROM skill_results
 GROUP BY position_id
 ORDER BY avg_pct DESC;
+
+-- ── 重复投递的手机号 + 简历数 + 公司分布 ──
+-- Note: 后端 schema 无 is_duplicate 列；此查询由前端 loaders.ts:fetchDuplicatePhones
+-- 同样逻辑得出（GROUP BY phone → COUNT(*) > 1）。
+WITH counts AS (
+  SELECT phone, COUNT(*) AS n
+  FROM resumes
+  WHERE phone IS NOT NULL
+  GROUP BY phone
+  HAVING COUNT(*) > 1
+)
+SELECT c.phone,
+       c.n AS resumes_total,
+       COUNT(DISTINCT r.company_id) AS companies_applied_to,
+       ARRAY_AGG(DISTINCT co.name ORDER BY co.name) AS company_names,
+       ARRAY_AGG(DISTINCT r.position_id ORDER BY r.position_id) AS position_ids
+FROM counts c
+JOIN resumes   r ON r.phone = c.phone
+JOIN companies co ON co.id = r.company_id
+GROUP BY c.phone, c.n
+ORDER BY c.n DESC;
+
+-- ── 找出"每次都去同一家"的重复学生（疑似账号借出 / 辅导班代投）──
+SELECT r.phone, COUNT(DISTINCT r.company_id) AS distinct_companies
+FROM resumes r
+WHERE r.phone IN (
+  SELECT phone FROM resumes WHERE phone IS NOT NULL GROUP BY phone HAVING COUNT(*) > 1
+)
+GROUP BY r.phone
+HAVING COUNT(DISTINCT r.company_id) = 1
+ORDER BY r.phone;
 
 -- ── 给某手机号批量加通知 ──
 INSERT INTO notifications (phone, title, content, type)
