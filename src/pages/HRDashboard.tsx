@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { EChart } from '../components/EChart'
 import { supabase } from '../lib/supabase'
-import { fetchCompanies, fetchAllPositions } from '../lib/loaders'
+import { fetchCompanies, fetchAllPositions, fetchDuplicatePhones } from '../lib/loaders'
 import { useAsync } from '../hooks/useAsync'
 
 const HR_SESSION_KEY = 'hr_authed'
@@ -13,6 +13,7 @@ interface Row {
   company_id: string | null
   status: string
   resume: {
+    phone: string
     major: string
     university: string
     degree: string | null
@@ -33,6 +34,7 @@ export default function HRDashboard() {
 
   const positions = positionsAsync.data ?? []
   const companies = companiesAsync.data ?? []
+  const dupePhonesAsync = useAsync(fetchDuplicatePhones, [])
 
   useEffect(() => {
     if (sessionStorage.getItem(HR_SESSION_KEY) !== 'true') {
@@ -44,7 +46,7 @@ export default function HRDashboard() {
     void (async () => {
       const { data, error } = await supabase
         .from('submissions')
-        .select('position_id, status, company_id, resume:resumes ( major, university, degree )')
+        .select('position_id, status, company_id, resume:resumes ( phone, major, university, degree )')
       if (error) { alert('加载失败：' + error.message); setLoading(false); return }
       const normalized = ((data ?? []) as any[]).map((d) => ({
         position_id: d.position_id,
@@ -219,6 +221,10 @@ export default function HRDashboard() {
   const total = rows.length
   const scheduledCount = rows.filter((r) => r.status === 'interview_scheduled').length
   const offeredCount = rows.filter((r) => r.status === 'offered').length
+  // Count of submissions whose underlying resume phone has 2+ entries.
+  const dupePhones = dupePhonesAsync.data ?? []
+  const duplicateSubmissionCount = rows.reduce((acc, r) => acc + (r.resume?.phone && dupePhones.includes(r.resume.phone) ? 1 : 0), 0)
+  const duplicatePhonesCount = dupePhones.length
 
   return (
     <Page title="数据看板">
@@ -229,6 +235,19 @@ export default function HRDashboard() {
         <Stat label="已 offer" value={offeredCount} />
         <Stat label="公司" value={companies.length} />
       </div>
+
+      {/* Duplicate-submission KPI strip (when there are dupes) */}
+      {dupePhones.length > 0 && (
+        <div className="bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-xl px-4 py-3 mb-6 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+          <div className="font-semibold text-orange-700 dark:text-orange-300">⚠ 重复投递</div>
+          <div className="text-orange-800 dark:text-orange-200">
+            涉及 <strong>{duplicatePhonesCount}</strong> 个手机号 / 共 <strong>{duplicateSubmissionCount}</strong> 条记录
+          </div>
+          <div className="text-xs text-orange-700 dark:text-orange-400">
+            （HR 后台 &gt; 投递简历列表 &gt; "只看重复投递"筛选）
+          </div>
+        </div>
+      )}
 
       {loading && <p className="text-center text-slate-400 dark:text-slate-500 py-10">加载中…</p>}
 

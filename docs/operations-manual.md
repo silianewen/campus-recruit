@@ -462,6 +462,21 @@ Vercel Dashboard → Project → Settings → Environment Variables → 修改 `
 
 **注意**：当前 MVP 的"通知"功能已实装（schema 有 `notifications` 表，前端 `/status` 显示），但 `/hr/list` 还没把"发通知"和"改状态"绑定到一个按钮上——HR 先手动改状态，学生侧会通过状态标签感知进度。要发具体文字通知需要 IT 加 UI。
 
+### 3.6 重复投递标记（新）
+
+**定义**：同手机号出现 ≥ 2 次的简历 = "重复投递"。学生**不会被阻断**（同一手机号可以投不同公司 / 不同岗位），但 HR 可以在后端看到标记。
+
+**HR 侧的使用**：
+
+- **数据看板**（`/hr/dashboard`）：如果有重复手机号，顶部出现**橙色提示条**：
+  > ⚠ 重复投递 · 涉及 **N** 个手机号 / 共 **M** 条记录
+  
+- **投递简历列表**（`/hr/list`）：
+  - 表格新增"标记"列，重复手机号那条行显示橙色 `重复投递` 徽章
+  - 筛选栏新增 **`重复投递` 下拉**：选"只看重复投递" → 只显示有重复的记录
+
+**判定逻辑**：纯读视图（不改 schema），每次从 `resumes` 表 GROUP BY phone 算 ——数据库零迁移。
+
 ### 3.6 维护公司 / 岗位 / 题库
 
 HR 没有任何前端维护界面——所有数据改动通过 **Supabase Dashboard**：
@@ -492,6 +507,49 @@ HR 没有任何前端维护界面——所有数据改动通过 **Supabase Dashb
 | 状态选项想加新值 | IT 改：`ALTER TYPE` / 改 `SUBMISSION_STATUS_LABEL` + 改数据库 CHECK constraint |
 | 误删了一条数据 | Supabase → Table Editor → 行级 history 可能恢复；最坏情况 IT 从备份恢复 |
 | 想批量导出 | Supabase → SQL Editor：`SELECT * FROM submissions;` → 下载 CSV |
+
+### 3.8 修改 HR 后台登录密码
+
+HR 密码是环境变量 `VITE_HR_PASSWORD`，**分两处**：本地 `.env.local` + 生产 Vercel Dashboard。改完一处记得同步改另一处。
+
+#### 修改生产环境的密码（Vercel）
+
+1. 打开 https://vercel.com/dashboard → 找到 `campus-recruit` 项目
+2. 进入 **Settings** → **Environment Variables**
+3. 在列表里找到 `VITE_HR_PASSWORD` 这一行
+4. 点该行右侧的 **⋮** 菜单（或直接点值）→ 编辑
+5. 把值改成新密码（建议：≥10 位，包含字母+数字+符号）
+6. 点 **Save** 保存
+
+> ⚠️ **改完 Vercel env 不会自动重新部署**——你需要手动触发一次：
+> - 进入 **Deployments** 页面 → 找到最新一条部署
+> - 右侧 **⋮** → **Redeploy**
+> - 等 1-2 分钟，新密码生效
+
+#### 修改本地开发环境的密码（`.env.local`）
+
+1. 打开 `c:/study/campus_recruitment/.env.local`（任意文本编辑器）
+2. 找到这一行：
+   ```
+   VITE_HR_PASSWORD=siliane0609
+   ```
+3. 把 `siliane0609` 改成新密码
+4. 保存文件
+5. 如果 `npm run dev` 还在跑，按 **Ctrl+C** 停掉 → 重新 `npm run dev`
+6. 新密码生效
+
+#### 推荐：用交互脚本改本地密码（不进对话历史）
+
+```powershell
+cd "c:/study/campus_recruitment"
+powershell -ExecutionPolicy Bypass -File scripts/set-env-secure.ps1
+```
+
+终端会提示输入 3 个值（URL / anon key / **新 HR 密码**）。**值都只在你的终端输入，不进入对话或 git 历史**。
+
+#### 把新密码告诉 HR 团队
+
+> ⚠️ 不要把新密码贴到对话里。如果只是你自己用，直接登录测试即可；如果是团队协作，建议用 1Password / Bitwarden 等工具共享，不要明文发消息。
 
 ---
 

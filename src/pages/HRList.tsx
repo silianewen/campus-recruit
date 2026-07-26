@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { supabase } from '../lib/supabase'
-import { fetchAllPositions, fetchCompanies, type PositionRow } from '../lib/loaders'
+import { fetchAllPositions, fetchCompanies, fetchDuplicatePhones, type PositionRow } from '../lib/loaders'
 import { useAsync } from '../hooks/useAsync'
 import { companyColor } from '../lib/companies'
 import type { SubmissionStatus } from '../lib/types'
@@ -39,6 +39,7 @@ export default function HRList() {
   const [filterPos, setFilterPos] = useState<string>('all')
   const [filterCompany, setFilterCompany] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [filterDuplicate, setFilterDuplicate] = useState<'all' | 'only'>('all')
   const [search, setSearch] = useState('')
 
   const [mbtiByPhone, setMbtiByPhone] = useState<Record<string, string>>({})
@@ -46,6 +47,7 @@ export default function HRList() {
 
   const companiesAsync = useAsync(fetchCompanies, [])
   const positionsAsync = useAsync(fetchAllPositions, [])
+  const dupePhonesAsync = useAsync(fetchDuplicatePhones, [])
 
   const positionsById = useMemo<Record<string, PositionRow>>(() => {
     const m: Record<string, PositionRow> = {}
@@ -112,10 +114,12 @@ export default function HRList() {
   }, [])
 
   const filtered = useMemo(() => {
+    const dupeSet = new Set(dupePhonesAsync.data ?? [])
     return rows.filter((r) => {
       if (filterCompany !== 'all' && r.company_id !== filterCompany) return false
       if (filterPos !== 'all' && r.position_id !== filterPos) return false
       if (filterStatus !== 'all' && r.status !== filterStatus) return false
+      if (filterDuplicate === 'only' && !(r.resume?.phone && dupeSet.has(r.resume.phone))) return false
       if (search) {
         const q = search.toLowerCase()
         const hit =
@@ -126,7 +130,7 @@ export default function HRList() {
       }
       return true
     })
-  }, [rows, filterCompany, filterPos, filterStatus, search])
+  }, [rows, filterCompany, filterPos, filterStatus, filterDuplicate, search, dupePhonesAsync.data])
 
   const updateStatus = async (id: string, status: SubmissionStatus) => {
     if (!supabase) return
@@ -156,6 +160,11 @@ export default function HRList() {
             <option key={s} value={s}>{SUBMISSION_STATUS_LABEL[s]}</option>
           )}
         </select>
+        <select value={filterDuplicate} onChange={(e) => setFilterDuplicate(e.target.value as 'all' | 'only')}
+          className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm">
+          <option value="all">重复投递（全部）</option>
+          <option value="only">只看重复投递</option>
+        </select>
         <input value={search} onChange={(e) => setSearch(e.target.value)}
           placeholder="搜索姓名/手机/专业"
           className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm flex-1 min-w-40" />
@@ -173,6 +182,7 @@ export default function HRList() {
             <tr>
               <th className="px-3 py-2 whitespace-nowrap">姓名</th>
               <th className="px-3 py-2 whitespace-nowrap">手机</th>
+              <th className="px-3 py-2 whitespace-nowrap">标记</th>
               <th className="px-3 py-2 whitespace-nowrap">应聘公司</th>
               <th className="px-3 py-2 whitespace-nowrap">职位</th>
               <th className="px-3 py-2 whitespace-nowrap">学校</th>
@@ -186,18 +196,26 @@ export default function HRList() {
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={11} className="px-3 py-8 text-center text-slate-400 dark:text-slate-500">
+              <tr><td colSpan={12} className="px-3 py-8 text-center text-slate-400 dark:text-slate-500">
                 {loading ? '加载中…' : '暂无数据'}
               </td></tr>
             )}
             {filtered.map((r) => {
               const phone = r.resume?.phone ?? ''
+              const isDuplicate = !!phone && (dupePhonesAsync.data ?? []).includes(phone)
               const mbti = phone ? mbtiByPhone[phone] : undefined
               const skill = phone ? skillByPhonePos[`${phone}|${r.position_id}`] : undefined
               return (
                 <tr key={r.id} className="border-t border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30">
                   <td className="px-3 py-2 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">{r.resume?.student_name ?? '—'}</td>
                   <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{r.resume?.phone ?? '—'}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {isDuplicate && (
+                      <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300">
+                        重复投递
+                      </span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 whitespace-nowrap">
                     {r.company_id ? (
                       <span>
