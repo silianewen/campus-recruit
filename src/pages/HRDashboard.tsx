@@ -221,14 +221,7 @@ export default function HRDashboard() {
   const offeredCount = rows.filter((r) => r.status === 'offered').length
 
   return (
-    <Page
-      title="数据看板"
-      toolbar={
-        <button onClick={() => navigate('/hr')} className="px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
-          ← 返回后台
-        </button>
-      }
-    >
+    <Page title="数据看板">
       {/* Top stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Stat label="总投递数" value={total} />
