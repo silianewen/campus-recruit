@@ -115,7 +115,7 @@ export default function HRList() {
   const isReadOnly = scope?.kind === 'default'
   const canSend = scope?.kind === 'admin' || scope?.kind === 'company'
 
-  // P7: bulk selection + download
+  // P7: bulk selection + download + bulk status update
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const toggleRow = (id: string) => {
     setSelectedIds((s) => {
@@ -126,6 +126,32 @@ export default function HRList() {
     })
   }
   const clearSelection = () => setSelectedIds(new Set())
+  const [showStatusMenu, setShowStatusMenu] = useState(false)
+  const [bulkStatusApplying, setBulkStatusApplying] = useState(false)
+  const applyBulkStatus = async (status: SubmissionStatus) => {
+    if (!supabase) return
+    if (isReadOnly) {
+      alert('默认分组只有只读权限，无法批量改状态')
+      setShowStatusMenu(false)
+      return
+    }
+    setBulkStatusApplying(true)
+    setShowStatusMenu(false)
+    try {
+      const ids = Array.from(selectedIds)
+      // Use in() to apply to all selected at once
+      const { error } = await supabase
+        .from('submissions')
+        .update({ status })
+        .in('id', ids)
+      if (error) { alert('批量修改失败：' + error.message); return }
+      // Update local state so the UI reflects new statuses without refetch.
+      setRows((prev) => prev.map((r) => selectedIds.has(r.id) ? { ...r, status } : r))
+      setSelectedIds(new Set())
+    } finally {
+      setBulkStatusApplying(false)
+    }
+  }
 
   const fetchRows = async () => {
     if (!supabase) return
@@ -320,7 +346,7 @@ export default function HRList() {
       const phone = r.resume?.phone ?? ''
       const isDup = !!phone && (dupePhonesAsync.data ?? []).includes(phone)
       const otherApps = (crossCtx[phone] ?? [])
-        .map((x) => `${x.company_name}-${x.position_title}`)
+        .map((x) => `${companyShortName(x.company_id) || x.company_name}-${x.position_title}`)
         .join('; ')
       return [
         r.resume?.student_name ?? '',
@@ -442,7 +468,7 @@ export default function HRList() {
       <table className="w-full text-sm">
         <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 text-left sticky top-0 z-20">
           <tr>
-            <th className="px-3 py-2 whitespace-nowrap w-10 text-center">
+            <th className="px-3 py-2 whitespace-nowrap w-10 text-center sticky left-0 z-10 bg-slate-50 dark:bg-slate-900/50">
               <input
                 type="checkbox"
                 checked={allFilteredSelected}
@@ -451,9 +477,9 @@ export default function HRList() {
                 className="w-4 h-4"
               />
             </th>
-            <th className="px-3 py-2 whitespace-nowrap w-10">#</th>
-            <th className="px-3 py-2 whitespace-nowrap sticky left-0 z-10 bg-slate-50 dark:bg-slate-900/50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">姓名</th>
-            <th className="px-3 py-2 whitespace-nowrap sticky left-[7rem] z-10 bg-slate-50 dark:bg-slate-900/50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">手机</th>
+            <th className="px-3 py-2 whitespace-nowrap w-10 sticky left-10 z-10 bg-slate-50 dark:bg-slate-900/50">#</th>
+            <th className="px-3 py-2 whitespace-nowrap min-w-[6rem] sticky left-[5rem] z-10 bg-slate-50 dark:bg-slate-900/50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">姓名</th>
+            <th className="px-3 py-2 whitespace-nowrap min-w-[7rem] sticky left-[11rem] z-10 bg-slate-50 dark:bg-slate-900/50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">手机</th>
             <th className="px-3 py-2 whitespace-nowrap">标记</th>
             <th className="px-3 py-2 whitespace-nowrap">应聘公司</th>
             <th className="px-3 py-2 whitespace-nowrap">职位</th>
@@ -480,7 +506,7 @@ export default function HRList() {
             const checked = selectedIds.has(r.id)
             return (
               <tr key={r.id} className={`border-t border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30 ${checked ? 'bg-blue-50/40 dark:bg-blue-900/20' : ''}`}>
-                <td className="px-3 py-2 text-center">
+                <td className="px-3 py-2 text-center sticky left-0 z-[5] bg-white dark:bg-slate-800">
                   <input
                     type="checkbox"
                     checked={checked}
@@ -488,13 +514,13 @@ export default function HRList() {
                     className="w-4 h-4"
                   />
                 </td>
-                <td className="px-3 py-2 text-xs text-slate-400 dark:text-slate-500 font-mono text-center w-10">
+                <td className="px-3 py-2 text-xs text-slate-400 dark:text-slate-500 font-mono text-center w-10 sticky left-10 z-[5] bg-white dark:bg-slate-800">
                   {idx + 1}
                 </td>
-                <td className="px-3 py-2 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap sticky left-0 z-[5] bg-white dark:bg-slate-800 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+                <td className="px-3 py-2 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap min-w-[6rem] sticky left-[5rem] z-[5] bg-white dark:bg-slate-800 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
                   {r.resume?.student_name ?? '—'}
                 </td>
-                <td className="px-3 py-2 font-mono text-xs whitespace-nowrap sticky left-[7rem] z-[5] bg-white dark:bg-slate-800 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+                <td className="px-3 py-2 font-mono text-xs whitespace-nowrap min-w-[7rem] sticky left-[11rem] z-[5] bg-white dark:bg-slate-800 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
                   {r.resume?.phone ?? '—'}
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap">
@@ -508,7 +534,7 @@ export default function HRList() {
                       <span className="block">其它投递：</span>
                       {crossCtx[phone].map((x) => (
                         <span key={x.position_id} className="block">
-                          · {x.company_name} — {x.position_title}
+                          · {companyShortName(x.company_id) || x.company_name} — {x.position_title}
                         </span>
                       ))}
                     </div>
@@ -629,9 +655,9 @@ export default function HRList() {
         </div>
       )}
 
-      {/* P7 selection bar (bulk download) */}
+      {/* P7 selection bar (bulk download + bulk status update) */}
       {filtered.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3 mb-3 px-3 py-2 bg-slate-50 dark:bg-slate-900/30 rounded-lg border border-slate-200 dark:border-slate-700 text-sm">
+        <div className="flex flex-wrap items-center gap-3 mb-3 px-3 py-2 bg-slate-50 dark:bg-slate-900/30 rounded-lg border border-slate-200 dark:border-slate-700 text-sm relative">
           <label className="inline-flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -641,21 +667,39 @@ export default function HRList() {
             />
             <span className="font-medium text-slate-800 dark:text-slate-200">全选当前筛选结果</span>
           </label>
-          <span
-            className={`px-2 py-0.5 rounded-full text-xs border ${
-              selectedCount > 0
-                ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
-                : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500'
-            }`}
-            title="已勾选可批量处理的简历数"
-          >
-            {selectedCount > 0 ? `已勾选 ${selectedCount} 份 · 批量处理中` : '已勾选 0 份'}
+          <span className="text-slate-500 dark:text-slate-400">
+            已选 <strong className="text-slate-700 dark:text-slate-300">{selectedCount}</strong> / {filteredIds.length} 条
           </span>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowStatusMenu((v) => !v)}
+              disabled={selectedCount === 0}
+              className="px-3 py-1.5 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed"
+            >
+              批量修改状态
+            </button>
+            {showStatusMenu && selectedCount > 0 && (
+              <div className="absolute top-full mt-1 left-0 z-30 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 min-w-40">
+                {(['submitted','reviewed','interview_scheduled','interviewed','offered','rejected'] as SubmissionStatus[]).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => void applyBulkStatus(s)}
+                    disabled={bulkStatusApplying}
+                    className="block w-full text-left px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+                  >
+                    {SUBMISSION_STATUS_LABEL[s]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
             type="button"
             onClick={bulkDownload}
             disabled={selectedCount === 0}
-            className="ml-auto px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed"
           >
             批量下载 ({selectedCount})
           </button>
