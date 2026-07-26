@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ThemeToggle } from '../components/ThemeToggle'
 import { Page } from '../components/Page'
 import { supabase } from '../lib/supabase'
 import { fetchAllPositions, fetchCompanies, type PositionRow } from '../lib/loaders'
@@ -137,17 +136,7 @@ export default function HRList() {
   }
 
   return (
-    <Page
-      title="投递简历列表"
-      toolbar={
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-          <button onClick={() => navigate('/hr')} className="px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
-            ← 返回后台
-          </button>
-        </div>
-      }
-    >
+    <Page title="投递简历列表">
       {/* Filters */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <select value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}
