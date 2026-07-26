@@ -37,7 +37,7 @@ export default function Success() {
           <div className="flex flex-col sm:flex-row gap-2 justify-center">
             <Link to="/personality"
               className="px-4 py-2 bg-white dark:bg-slate-800 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900/50">
-              🧠 性格测评（5 分钟）
+              🧠 性格测评（8 分钟）
             </Link>
             <Link to={skillTestHref}
               className="px-4 py-2 bg-white dark:bg-slate-800 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 rounded-lg text-sm hover:bg-blue-100 dark:hover:bg-blue-900/50">

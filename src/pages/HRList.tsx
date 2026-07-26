@@ -13,7 +13,7 @@ import {
   type NotificationInsert,
 } from '../lib/loaders'
 import { useAsync } from '../hooks/useAsync'
-import { companyColor } from '../lib/companies'
+import { companyColor, companyShortName } from '../lib/companies'
 import { rowsToCsv, downloadCsv } from '../lib/csv'
 import type { HrScope, SubmissionStatus, HrGroup } from '../lib/types'
 import { SUBMISSION_STATUS_LABEL } from '../lib/types'
@@ -396,7 +396,7 @@ export default function HRList() {
               {r.company_id && (
                 <span>
                   <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${companyColor(r.company_id)}`} />
-                  {companyNameById[r.company_id] ?? r.company_id}
+                  {companyShortName(r.company_id) || companyNameById[r.company_id] || r.company_id}
                 </span>
               )}{' '}
               · {positionsById[r.position_id]?.title ?? r.position_id}
@@ -440,7 +440,7 @@ export default function HRList() {
   const renderTable = () => (
     <div className="hidden sm:block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-x-auto">
       <table className="w-full text-sm">
-        <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 text-left">
+        <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 text-left sticky top-0 z-20">
           <tr>
             <th className="px-3 py-2 whitespace-nowrap w-10 text-center">
               <input
@@ -452,8 +452,8 @@ export default function HRList() {
               />
             </th>
             <th className="px-3 py-2 whitespace-nowrap w-10">#</th>
-            <th className="px-3 py-2 whitespace-nowrap">姓名</th>
-            <th className="px-3 py-2 whitespace-nowrap">手机</th>
+            <th className="px-3 py-2 whitespace-nowrap sticky left-0 z-10 bg-slate-50 dark:bg-slate-900/50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">姓名</th>
+            <th className="px-3 py-2 whitespace-nowrap sticky left-[7rem] z-10 bg-slate-50 dark:bg-slate-900/50 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">手机</th>
             <th className="px-3 py-2 whitespace-nowrap">标记</th>
             <th className="px-3 py-2 whitespace-nowrap">应聘公司</th>
             <th className="px-3 py-2 whitespace-nowrap">职位</th>
@@ -491,8 +491,12 @@ export default function HRList() {
                 <td className="px-3 py-2 text-xs text-slate-400 dark:text-slate-500 font-mono text-center w-10">
                   {idx + 1}
                 </td>
-                <td className="px-3 py-2 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">{r.resume?.student_name ?? '—'}</td>
-                <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{r.resume?.phone ?? '—'}</td>
+                <td className="px-3 py-2 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap sticky left-0 z-[5] bg-white dark:bg-slate-800 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+                  {r.resume?.student_name ?? '—'}
+                </td>
+                <td className="px-3 py-2 font-mono text-xs whitespace-nowrap sticky left-[7rem] z-[5] bg-white dark:bg-slate-800 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+                  {r.resume?.phone ?? '—'}
+                </td>
                 <td className="px-3 py-2 whitespace-nowrap">
                   {isDuplicate && (
                     <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300">
@@ -514,7 +518,7 @@ export default function HRList() {
                   {r.company_id ? (
                     <span>
                       <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${companyColor(r.company_id)}`} />
-                      {companyNameById[r.company_id] ?? r.company_id}
+                      {companyShortName(r.company_id) || companyNameById[r.company_id] || r.company_id}
                     </span>
                   ) : <span className="text-slate-300">—</span>}
                 </td>
@@ -637,8 +641,15 @@ export default function HRList() {
             />
             <span className="font-medium text-slate-800 dark:text-slate-200">全选当前筛选结果</span>
           </label>
-          <span className="text-slate-500 dark:text-slate-400">
-            已选 <strong className="text-slate-700 dark:text-slate-300">{selectedCount}</strong> / {filteredIds.length} 条
+          <span
+            className={`px-2 py-0.5 rounded-full text-xs border ${
+              selectedCount > 0
+                ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300'
+                : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-400 dark:text-slate-500'
+            }`}
+            title="已勾选可批量处理的简历数"
+          >
+            {selectedCount > 0 ? `已勾选 ${selectedCount} 份 · 批量处理中` : '已勾选 0 份'}
           </span>
           <button
             type="button"
