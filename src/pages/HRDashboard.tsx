@@ -5,6 +5,7 @@ import { EChart } from '../components/EChart'
 import { supabase } from '../lib/supabase'
 import {
   fetchCompanies,
+  fetchAllPositions,
   fetchPositionsForCompany,
   fetchDuplicatePhones,
   type PositionRow,
