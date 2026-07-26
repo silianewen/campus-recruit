@@ -1,4 +1,5 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { QrDownload } from '../components/QrDownload'
 
@@ -7,12 +8,27 @@ const HR_PASSWORD = import.meta.env.VITE_HR_PASSWORD as string | undefined
 
 export default function HR() {
   const navigate = useNavigate()
+  const location = useLocation()
   const authed = sessionStorage.getItem(HR_SESSION_KEY) === 'true'
   const homeUrl = typeof window !== 'undefined' ? window.location.origin + '/' : 'https://campusrecruitment.vercel.app/'
 
+  // Smart back button: history if available, else "/" (student home).
+  const hasHistory = location.key !== 'default'
+  const goBack = () => hasHistory ? navigate(-1) : navigate('/')
+
+  // ============================================================
+  // Login form (pre-auth) — centered, simple
+  // ============================================================
   if (!authed) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center px-4">
+        {/* Top bar with logo (left), back (right-aligned with toggle) */}
+        <div className="fixed top-0 left-0 right-0 px-4 py-3 flex items-center justify-between pointer-events-none">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold text-xl shadow-md pointer-events-auto" aria-label="中南创发集团 logo 占位">中</div>
+          <div className="flex items-center gap-2 pointer-events-auto">
+            <ThemeToggle />
+          </div>
+        </div>
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -26,7 +42,7 @@ export default function HR() {
               alert('密码错误')
             }
           }}
-          className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 max-w-sm w-full"
+          className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 max-w-sm w-full mt-16"
         >
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4 text-center">HR 登录</h2>
           {!HR_PASSWORD ? (
@@ -49,22 +65,28 @@ export default function HR() {
     )
   }
 
+  // ============================================================
+  // HR landing page (post-auth)
+  // ============================================================
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
       <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Header: logo · title · theme toggle + logout */}
-        <header className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 px-6 py-5 mb-6 flex items-center gap-4">
+
+        {/* Top bar: logo (left) · back button + theme toggle + logout (right) */}
+        <div className="flex items-center justify-between mb-6">
           <div
-            className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold text-2xl shadow-md flex-shrink-0"
+            className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold text-2xl shadow-md"
             aria-label="中南创发集团 logo 占位"
           >
             中
           </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">中南创发校招HR管理后台</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">简历投递 · 通知 · 数据看板</p>
-          </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={goBack}
+              className="px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+            >
+              ← 返回上一页
+            </button>
             <ThemeToggle />
             <button
               onClick={() => {
@@ -76,7 +98,15 @@ export default function HR() {
               退出登录
             </button>
           </div>
-        </header>
+        </div>
+
+        {/* Centered title */}
+        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 text-center mb-2">
+          中南创发校招HR管理后台
+        </h1>
+        <p className="text-base text-slate-500 dark:text-slate-400 text-center mb-8">
+          简历投递 · 通知 · 数据看板
+        </p>
 
         {/* QR for student page */}
         <section className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 mb-6 flex flex-col sm:flex-row items-center gap-4">
@@ -94,22 +124,22 @@ export default function HR() {
 
         {/* Two module entries */}
         <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Link
-            to="/hr/list"
-            className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500 transition"
+          <button
+            onClick={() => navigate('/hr/list')}
+            className="text-left bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500 transition"
           >
             <div className="text-3xl mb-2">📋</div>
             <div className="font-semibold text-slate-900 dark:text-slate-100 text-lg">投递简历列表</div>
             <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">查看所有学生投递、改状态、发送面试通知</div>
-          </Link>
-          <Link
-            to="/hr/dashboard"
-            className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500 transition"
+          </button>
+          <button
+            onClick={() => navigate('/hr/dashboard')}
+            className="text-left bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500 transition"
           >
             <div className="text-3xl mb-2">📊</div>
             <div className="font-semibold text-slate-900 dark:text-slate-100 text-lg">数据看板</div>
             <div className="text-sm text-slate-500 dark:text-slate-400 mt-1">按公司/职位/学历等维度分析投递数据</div>
-          </Link>
+          </button>
         </section>
       </div>
     </div>

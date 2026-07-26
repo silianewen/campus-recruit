@@ -32,7 +32,6 @@ export default function Home() {
     const m: Record<string, PositionRow[]> = {}
     for (const c of companiesAsync.data ?? []) m[c.id] = []
     for (const p of allPositionsAsync.data ?? []) {
-      // Position id format: "<companyId>-<slug>". Derive company id by first dash.
       const dashIdx = p.id.indexOf('-')
       if (dashIdx <= 0) continue
       const cid = p.id.slice(0, dashIdx)
@@ -45,29 +44,46 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-900 dark:to-slate-800">
       <div className="max-w-6xl mx-auto px-4 py-8">
+
         {/* ============================================================
-            Header: logo (left) · title + tagline (center) · theme toggle (right)
+            Top bar — logo (top-left) · theme toggle (top-right).
+            Title + tagline rendered CENTERED below.
            ============================================================ */}
-        <header className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 px-6 py-5 mb-6 flex items-center gap-4">
+        <div className="flex items-center justify-between mb-6">
           <div
-            className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold text-2xl shadow-md flex-shrink-0"
+            className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold text-2xl shadow-md"
             aria-label="中南创发集团 logo 占位"
           >
             中
           </div>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 truncate">
-              中南创发校招投递平台
-            </h1>
-            <p className="text-sm sm:text-base text-slate-500 dark:text-slate-400 mt-1">
-              扫码投递 · 在线测评 · 实时跟踪状态
-            </p>
-          </div>
           <ThemeToggle />
-        </header>
+        </div>
+
+        {/* Title + tagline, centered */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100">
+            中南创发校招投递平台
+          </h1>
+          <p className="text-base sm:text-lg text-slate-500 dark:text-slate-400 mt-2">
+            扫码投递 · 在线测评 · 实时跟踪状态
+          </p>
+        </div>
 
         {/* ============================================================
-            Filter row: company dropdown (left only)
+            中南创发集团简介 (placeholder; user will provide copy later)
+           ============================================================ */}
+        <section className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 mb-6">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-2">
+            <span className="inline-block w-1.5 h-4 rounded-sm bg-blue-500" />
+            中南创发集团简介
+          </h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 italic">
+            集团简介待补充
+          </p>
+        </section>
+
+        {/* ============================================================
+            Filter row: single company dropdown
            ============================================================ */}
         <section className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 mb-6">
           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
@@ -97,7 +113,7 @@ export default function Home() {
         </section>
 
         {/* ============================================================
-            All-companies view (when no filter) — grouped by company
+            All-companies view (no filter) — each company shows intro + positions
            ============================================================ */}
         {!selectedCompany && (
           <AsyncView
@@ -118,13 +134,16 @@ export default function Home() {
                   const positions = positionsByCompanyId[c.id] ?? []
                   return (
                     <div key={c.id} className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">
-                      <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center justify-between mb-2">
                         <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                           <span className={`inline-block w-2 h-2 rounded-full ${companyColor(c.id)}`} />
                           {c.name}
                         </h3>
                         <span className="text-xs text-slate-400 dark:text-slate-500">{positions.length} 个岗位</span>
                       </div>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 italic mb-4">
+                        {c.description?.trim() ? c.description : '公司简介待补充'}
+                      </p>
                       {positions.length === 0 ? (
                         <p className="text-sm text-slate-400 dark:text-slate-500 italic">暂无在招岗位</p>
                       ) : (
@@ -151,7 +170,7 @@ export default function Home() {
         )}
 
         {/* ============================================================
-            Single-company view (when company selected)
+            Single-company view (filter set) — same intro + positions, scoped
            ============================================================ */}
         {selectedCompany && (
           <section className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 mb-6">
@@ -218,7 +237,7 @@ export default function Home() {
           </Link>
         </section>
 
-        {/* HR entry link, unobtrusive but findable */}
+        {/* HR entry link */}
         <div className="text-center">
           <Link
             to="/hr"
