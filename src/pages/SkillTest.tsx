@@ -1,14 +1,21 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { supabase } from '../lib/supabase'
+import { companyColor } from '../lib/companies'
 import { isCompanyId } from '../lib/companies'
 import { isPositionId } from '../lib/positions'
-import { fetchQuestionsForPosition, fetchPosition } from '../lib/loaders'
+import {
+  fetchCompanies,
+  fetchAllPositions,
+  fetchPosition,
+  fetchQuestionsForPosition,
+  type PositionRow,
+} from '../lib/loaders'
 import { useAsync } from '../hooks/useAsync'
 import { AsyncView } from '../components/AsyncView'
 import { extractErrorMessage } from '../lib/errors'
-import type { SkillQuestion } from '../lib/types'
+import type { Company, SkillQuestion } from '../lib/types'
 
 export default function SkillTest() {
   const [searchParams] = useSearchParams()
@@ -17,6 +24,9 @@ export default function SkillTest() {
 
   const companyId = companyParam && isCompanyId(companyParam) ? companyParam : null
   const positionId = positionParam && isPositionId(positionParam) ? positionParam : null
+
+  // Direct entry mode (with URL params) vs picker mode (without).
+  const directEntry = !!(companyId && positionId)
 
   const [phone, setPhone] = useState('')
   const [started, setStarted] = useState(false)
@@ -27,11 +37,24 @@ export default function SkillTest() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Load questions + position metadata from DB (DB-first).
-  const posAsync = useAsync(() => positionId ? fetchPosition(positionId) : Promise.resolve(null), [positionId])
+  // Load questions + position metadata only when in direct-entry mode.
+  const posAsync = useAsync(
+    () => positionId ? fetchPosition(positionId) : Promise.resolve(null),
+    [positionId]
+  )
   const questionsAsync = useAsync<SkillQuestion[]>(
     () => positionId ? fetchQuestionsForPosition(positionId) : Promise.resolve([]),
     [positionId]
+  )
+
+  // Load companies + all positions for picker mode.
+  const companiesAsync = useAsync(
+    () => directEntry ? Promise.resolve([]) : fetchCompanies(),
+    [directEntry]
+  )
+  const allPositionsAsync = useAsync(
+    () => directEntry ? Promise.resolve([] as PositionRow[]) : fetchAllPositions(),
+    [directEntry]
   )
 
   const questions = questionsAsync.data ?? []
@@ -41,6 +64,23 @@ export default function SkillTest() {
   const current = questions[idx]
 
   const posTitle = posAsync.data?.title ?? positionId ?? '专业能力测试'
+  const companyName = companyId
+    ? companiesAsync.data?.find((c) => c.id === companyId)?.name ?? companyId
+    : null
+
+  // Group positions by company for picker rendering.
+  const positionsByCompanyId = useMemo<Record<string, PositionRow[]>>(() => {
+    const m: Record<string, PositionRow[]> = {}
+    for (const c of companiesAsync.data ?? []) m[c.id] = []
+    for (const p of allPositionsAsync.data ?? []) {
+      const dashIdx = p.id.indexOf('-')
+      if (dashIdx <= 0) continue
+      const cid = p.id.slice(0, dashIdx)
+      if (!m[cid]) m[cid] = []
+      m[cid].push(p)
+    }
+    return m
+  }, [companiesAsync.data, allPositionsAsync.data])
 
   const startQuiz = (e: React.FormEvent) => {
     e.preventDefault()
@@ -88,20 +128,68 @@ export default function SkillTest() {
     setPhone('')
   }
 
-  // Missing context
-  if (!companyId || !positionId) {
+  const subtitle = `${companyName ?? ''}${companyName ? ' · ' : ''}${posTitle}`
+
+  // ============================================================
+  // Mode: picker (no URL params) — show all companies + their positions
+  // ============================================================
+  if (!directEntry) {
+    const loading = companiesAsync.loading || allPositionsAsync.loading
     return (
-      <Page title="专业能力测试">
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 max-w-md mx-auto text-center text-slate-600 dark:text-slate-300">
-          <p className="mb-2">缺少公司或岗位信息。</p>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">请通过首页选择公司+岗位，或从投递成功页进入。</p>
-          <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline">← 返回首页</Link>
-        </div>
+      <Page title="专业能力测试" subtitle="选择一家公司和对应岗位开始测试（5 道题，约 5 分钟）">
+        <AsyncView
+          data={companiesAsync.data}
+          loading={loading}
+          error={companiesAsync.error ?? allPositionsAsync.error}
+          refetch={() => { void companiesAsync.refetch(); void allPositionsAsync.refetch() }}
+          isEmpty={(d) => d.length === 0}
+          empty={
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-10 text-center text-slate-500 dark:text-slate-400">
+              公司列表尚未配置。请稍后再来。
+            </div>
+          }
+        >
+          {() => (
+            <div className="space-y-6">
+              {companiesAsync.data?.map((c: Company) => {
+                const positions = positionsByCompanyId[c.id] ?? []
+                if (positions.length === 0) return null
+                return (
+                  <section
+                    key={c.id}
+                    className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5"
+                  >
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`inline-block w-2 h-2 rounded-full ${companyColor(c.id)}`} />
+                      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{c.name}</h3>
+                      <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto">{positions.length} 个岗位</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {positions.map((p) => (
+                        <Link
+                          key={p.id}
+                          to={`/skill-test?company=${c.id}&position=${p.id}`}
+                          className="block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500 transition"
+                        >
+                          <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">{p.category ?? '—'}</div>
+                          <div className="font-medium text-slate-900 dark:text-slate-100">{p.title}</div>
+                          <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">开始测试 →</div>
+                        </Link>
+                      ))}
+                    </div>
+                  </section>
+                )
+              })}
+            </div>
+          )}
+        </AsyncView>
       </Page>
     )
   }
 
-  const subtitle = posTitle
+  // ============================================================
+  // Mode: direct entry (with ?company=&position=) — phone gate → quiz
+  // ============================================================
 
   // Result view
   if (showResult) {
@@ -127,7 +215,6 @@ export default function SkillTest() {
 
   // Phone gate
   if (!started) {
-    const loading = questionsAsync.loading
     const loadedTotal = total
     return (
       <Page title="专业能力测试" subtitle={subtitle}>
@@ -139,7 +226,7 @@ export default function SkillTest() {
             refetch={questionsAsync.refetch}
             isEmpty={(d) => d.length === 0}
             empty={
-              !loading ? (
+              !questionsAsync.loading ? (
                 <div className="bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm px-3 py-2 rounded mb-3">
                   该岗位题库暂未准备，请联系 HR。
                 </div>
@@ -156,15 +243,15 @@ export default function SkillTest() {
           <input
             type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
             placeholder="11 位手机号"
-            disabled={loading || loadedTotal === 0}
+            disabled={questionsAsync.loading || loadedTotal === 0}
             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg mb-3 focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-100 dark:disabled:bg-slate-800"
           />
-          <button type="submit" disabled={loading || loadedTotal === 0}
+          <button type="submit" disabled={questionsAsync.loading || loadedTotal === 0}
             className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-slate-400 dark:disabled:bg-slate-700">
             开始答题
           </button>
-          <Link to="/" className="block w-full mt-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-center">
-            ← 返回首页
+          <Link to="/skill-test" className="block w-full mt-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-center">
+            ← 换个岗位
           </Link>
         </form>
       </Page>
@@ -209,7 +296,7 @@ export default function SkillTest() {
           {idx < total - 1 ? (
             <button onClick={next} disabled={!answers[current.id]}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 dark:disabled:bg-slate-700">
-              下一题 →
+                下一题 →
             </button>
           ) : (
             <button onClick={() => void submit()} disabled={!allDone || submitting}

@@ -91,7 +91,7 @@ export default function Personality() {
   // Step 0: phone gate
   if (!started) {
     return (
-      <Page title="性格测评" subtitle="20 道题，约 5 分钟。结果仅用于自我了解与岗位匹配参考。">
+      <Page title="性格测评" subtitle="49 道题，约 8 分钟。结果仅用于自我了解与岗位匹配参考。">
         <form onSubmit={start} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 max-w-md mx-auto">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">开始测评</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">输入手机号用于关联你的测评记录，HR 在后台可查看。</p>
