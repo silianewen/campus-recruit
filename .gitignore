@@ -34,3 +34,9 @@ dist-ssr
 /review_diff.txt
 /review_notes/
 
+# Stray copies of the user-level Claude / OpenSpec config that occasionally
+# land inside /docs when the tools dump there. The repo's own OpenSpec state
+# lives at /openspec/ (not under /docs/).
+/docs/.claude/
+/docs/openspec/
+
