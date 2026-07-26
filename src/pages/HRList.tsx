@@ -520,7 +520,7 @@ export default function HRList() {
                 <td className="px-3 py-2 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap min-w-[6rem] sticky left-[5rem] z-[5] bg-white dark:bg-slate-800 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
                   {r.resume?.student_name ?? '—'}
                 </td>
-                <td className="px-3 py-2 font-mono text-xs whitespace-nowrap min-w-[7rem] sticky left-[11rem] z-[5] bg-white dark:bg-slate-800 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+                <td className={`px-3 py-2 font-mono text-xs text-slate-700 dark:text-slate-100 whitespace-nowrap min-w-[7rem] sticky left-[11rem] z-[5] ${checked ? 'bg-blue-50/40 dark:bg-blue-900/20' : 'bg-white dark:bg-slate-800'} shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]`}>
                   {r.resume?.phone ?? '—'}
                 </td>
                 <td className="px-3 py-2 whitespace-nowrap">
@@ -540,15 +540,15 @@ export default function HRList() {
                     </div>
                   )}
                 </td>
-                <td className="px-3 py-2 whitespace-nowrap">
+                <td className="px-3 py-2 text-slate-900 dark:text-slate-100 whitespace-nowrap">
                   {r.company_id ? (
                     <span>
                       <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${companyColor(r.company_id)}`} />
                       {companyShortName(r.company_id) || companyNameById[r.company_id] || r.company_id}
                     </span>
-                  ) : <span className="text-slate-300">—</span>}
+                  ) : <span className="text-slate-400 dark:text-slate-500">—</span>}
                 </td>
-                <td className="px-3 py-2 whitespace-nowrap">{positionsById[r.position_id]?.title ?? r.position_id}</td>
+                <td className="px-3 py-2 text-slate-900 dark:text-slate-100 whitespace-nowrap">{positionsById[r.position_id]?.title ?? r.position_id}</td>
                 <td className="px-3 py-2 text-slate-700 dark:text-slate-300 whitespace-nowrap">
                   {r.resume?.university ?? '—'}
                   {r.resume?.degree && (
@@ -670,6 +670,7 @@ export default function HRList() {
           <span className="text-slate-500 dark:text-slate-400">
             已选 <strong className="text-slate-700 dark:text-slate-300">{selectedCount}</strong> / {filteredIds.length} 条
           </span>
+          <span className="flex-1" />
           <div className="relative">
             <button
               type="button"
@@ -680,7 +681,7 @@ export default function HRList() {
               批量修改状态
             </button>
             {showStatusMenu && selectedCount > 0 && (
-              <div className="absolute top-full mt-1 left-0 z-30 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 min-w-40">
+              <div className="absolute top-full mt-1 right-0 z-30 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 min-w-40">
                 {(['submitted','reviewed','interview_scheduled','interviewed','offered','rejected'] as SubmissionStatus[]).map((s) => (
                   <button
                     key={s}

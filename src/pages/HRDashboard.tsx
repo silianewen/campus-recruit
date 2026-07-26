@@ -5,11 +5,12 @@ import { EChart } from '../components/EChart'
 import { supabase } from '../lib/supabase'
 import {
   fetchCompanies,
-  fetchAllPositions,
   fetchPositionsForCompany,
   fetchDuplicatePhones,
+  type PositionRow,
 } from '../lib/loaders'
 import { useAsync } from '../hooks/useAsync'
+import { companyShortName } from '../lib/companies'
 import type { HrScope, HrGroup } from '../lib/types'
 
 const HR_AUTH_KEY = 'hr_auth'
@@ -57,22 +58,16 @@ export default function HRDashboard() {
   // P8 strict-scope: company group only sees own positions.
   // P4 mobile: still loads all (we don't need to change the data flow).
   const companiesAsync = useAsync(fetchCompanies, [])
-  const positionsAsync = useAsync(
+  const positionsAsync = useAsync<PositionRow[]>(
     () => scope?.kind === 'company'
       ? fetchPositionsForCompany(scope.companyId)
       : fetchAllPositions(),
     [scope?.kind === 'company' ? scope.companyId : null],
   )
-  // For admin / default, ALSO fetch other companies' positions for the
-  // stacked-bar chart x-axis. (For company group, we already have only its
-  // own positions.)
-  const allPositionsAsync = useAsync(
-    () => scope?.kind === 'company' ? Promise.resolve([]) : fetchAllPositions(),
-    [scope?.kind],
-  )
+  // (P9: allPositions + stacked bar removed; positions comes from
+  // positionsAsync which is company-scoped when scope=company.)
 
   const positions = positionsAsync.data ?? []
-  const allPositions = allPositionsAsync.data ?? []
   const companies = companiesAsync.data ?? []
   // P8: company-scoped duplicate count. Admin / default see the full set;
   // company group sees only phones duplicated within its own company.
@@ -126,32 +121,40 @@ export default function HRDashboard() {
     return counts
   }, [rows, positions])
 
-  // 2. Per-company × per-position → stacked bar (admin / default only;
-  //    company group only sees own segment so we collapse to one slice).
-  const companyPositionCounts = useMemo(() => {
-    const out: Record<string, Record<string, number>> = {}
-    if (scope?.kind === 'company') {
-      // Company group: only the user's own segment, just own positions.
-      out[scope.companyId] = {}
-      for (const p of positions) out[scope.companyId][p.id] = 0
-      for (const r of rows) {
-        if (r.company_id === scope.companyId) {
-          out[scope.companyId][r.position_id] = (out[scope.companyId][r.position_id] ?? 0) + 1
-        }
+  // Positions grouped by company for the bar chart — labels show `短公司名 · 职位名`
+  // so the chart scales well when the number of positions grows.
+  const positionsGrouped = useMemo(() => {
+    const getCompanyId = (posId: string): string => {
+      const idx = posId.indexOf('-')
+      return idx > 0 ? posId.slice(0, idx) : 'other'
+    }
+    // Group
+    const groupMap: Record<string, { position: PositionRow; count: number }[]> = {}
+    for (const p of positions) {
+      const cid = getCompanyId(p.id)
+      if (!groupMap[cid]) groupMap[cid] = []
+      groupMap[cid].push({ position: p, count: positionCounts[p.id] ?? 0 })
+    }
+    // Sort companies by their order in the companies array
+    const companyOrder = companies.reduce<Record<string, number>>((m, c, i) => {
+      m[c.id] = i
+      return m
+    }, {})
+    const sortedEntries = Object.entries(groupMap).sort(
+      ([a], [b]) => (companyOrder[a] ?? 999) - (companyOrder[b] ?? 999),
+    )
+    // Build label + value arrays; within each company, sort by position title
+    const labels: string[] = []
+    const values: number[] = []
+    for (const [cid, items] of sortedEntries) {
+      items.sort((a, b) => a.position.title.localeCompare(b.position.title, 'zh-CN'))
+      for (const { position, count } of items) {
+        labels.push(`${companyShortName(cid)} · ${position.title}`)
+        values.push(count)
       }
-      return out
     }
-    for (const c of companies) {
-      out[c.id] = {}
-      for (const p of allPositions) out[c.id][p.id] = 0
-    }
-    for (const r of rows) {
-      const cid = r.company_id
-      if (!cid || !out[cid]) continue
-      out[cid][r.position_id] = (out[cid][r.position_id] ?? 0) + 1
-    }
-    return out
-  }, [rows, companies, allPositions, positions, scope?.kind, scopeCompanyId])
+    return { labels, values }
+  }, [positions, positionCounts, companies])
 
   // 3. Per-company counts → pie of 公司分布 (admin / default only;
   //    company group always shows 100% self)
@@ -201,61 +204,39 @@ export default function HRDashboard() {
   // -------------------------------------------------------------------------
   // ECharts options
   // -------------------------------------------------------------------------
+  // P9 horizontal bar — grouped by company so it scales to many positions.
+  // Long titles won't collide or get cut off (vertical bars do that on mobile).
   const positionBarOption = useMemo(() => ({
     backgroundColor: 'transparent',
     title: { text: '各职位投递数', left: 'center', textStyle: { fontSize: 14, color: isDark ? '#f1f5f9' : '#0f172a' } },
     tooltip: { trigger: 'axis' as const },
-    grid: { left: 50, right: 30, top: 50, bottom: 80 },
+    grid: { left: 160, right: 50, top: 30, bottom: 30, containLabel: true },
     xAxis: {
-      type: 'category' as const,
-      data: positions.map((p) => p.title),
-      axisLabel: { color: isDark ? '#cbd5e1' : '#475569', rotate: 30, interval: 0, fontSize: 10 },
+      type: 'value' as const,
+      minInterval: 1,
+      axisLabel: { color: isDark ? '#cbd5e1' : '#475569' },
     },
-    yAxis: { type: 'value' as const, minInterval: 1, axisLabel: { color: isDark ? '#cbd5e1' : '#475569' } },
+    yAxis: {
+      type: 'category' as const,
+      data: positionsGrouped.labels,
+      axisLabel: { color: isDark ? '#cbd5e1' : '#475569', fontSize: 11 },
+      inverse: true,
+    },
     series: [{
       type: 'bar' as const,
-      data: positions.map((p) => positionCounts[p.id] ?? 0),
-      itemStyle: { color: colorPalette[0], borderRadius: [4, 4, 0, 0] },
-      label: { show: true, position: 'top' as const, color: isDark ? '#f1f5f9' : '#0f172a' },
+      data: positionsGrouped.values,
+      itemStyle: { color: colorPalette[0], borderRadius: [0, 4, 4, 0] },
+      label: { show: true, position: 'right' as const, color: isDark ? '#f1f5f9' : '#0f172a', fontSize: 11 },
     }],
-  }), [positionCounts, positions, isDark])
+  }), [positionsGrouped, isDark])
 
-  const stackedOption = useMemo(() => {
-    const companiesList = scope?.kind === 'company'
-      ? [scope.companyId]
-      : companies.map((c) => c.id)
-    const positionsForStack = scope?.kind === 'company' ? positions : allPositions
-    return {
-      backgroundColor: 'transparent',
-      title: { text: '各公司各职位投递分布', left: 'center', textStyle: { fontSize: 14, color: isDark ? '#f1f5f9' : '#0f172a' } },
-      tooltip: { trigger: 'axis' as const, axisPointer: { type: 'shadow' as const } },
-      legend: { bottom: 0, type: 'scroll' as const, textStyle: { color: isDark ? '#cbd5e1' : '#475569' } },
-      grid: { left: 50, right: 30, top: 50, bottom: 70 },
-      xAxis: {
-        type: 'category' as const,
-        data: companiesList.map((cid) =>
-          cid === scopeCompanyId
-            ? (companies.find((c) => c.id === cid)?.name ?? cid)
-            : (companies.find((c) => c.id === cid)?.name ?? cid)
-        ),
-        axisLabel: { color: isDark ? '#cbd5e1' : '#475569', rotate: 20, fontSize: 10, interval: 0 },
-      },
-      yAxis: { type: 'value' as const, minInterval: 1, axisLabel: { color: isDark ? '#cbd5e1' : '#475569' } },
-      series: positionsForStack.map((p, i) => ({
-        name: p.title,
-        type: 'bar' as const,
-        stack: 'count',
-        data: companiesList.map((cid) => companyPositionCounts[cid]?.[p.id] ?? 0),
-        itemStyle: { color: colorPalette[i % colorPalette.length] },
-      })),
-    }
-  }, [companyPositionCounts, companies, positions, allPositions, isDark, scope?.kind, scopeCompanyId])
+  // (P9: stacked bar chart removed; horizontal bar + 3 pies now)
 
   const companyPieOption = useMemo(() => {
     const data = scope?.kind === 'company'
-      ? [{ name: companies.find((c) => c.id === scope.companyId)?.name ?? scope.companyId, value: companyCounts[scope.companyId] ?? 0, itemStyle: { color: colorPalette[0] } }]
+      ? [{ name: companyShortName(scope.companyId) || scope.companyId, value: companyCounts[scope.companyId] ?? 0, itemStyle: { color: colorPalette[0] } }]
       : companies.map((c) => ({
-          name: c.name,
+          name: companyShortName(c.id) || c.name,
           value: companyCounts[c.id] ?? 0,
           itemStyle: { color: colorPalette[companies.indexOf(c) % colorPalette.length] },
         }))
@@ -345,10 +326,7 @@ export default function HRDashboard() {
       {!loading && total > 0 && (
         <div className="grid grid-cols-1 gap-6">
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-            <EChart option={positionBarOption} height={bigHeight} />
-          </div>
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-            <EChart option={stackedOption} height={bigHeight} />
+            <EChart option={positionBarOption} height={Math.max(bigHeight, positionsGrouped.labels.length * 36 + 60)} />
           </div>
           {/* P4: 1 col on mobile, 3 on desktop */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

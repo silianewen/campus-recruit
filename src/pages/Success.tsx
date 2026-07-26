@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Page } from '../components/Page'
+import { supabase } from '../lib/supabase'
 import { fetchCompanyName, fetchPosition } from '../lib/loaders'
 import { useAsync } from '../hooks/useAsync'
 
@@ -13,6 +15,24 @@ export default function Success() {
   const posAsync = useAsync(() => positionParam ? fetchPosition(positionParam) : Promise.resolve(null), [positionParam])
   const companyName = companyAsync.data ?? companyParam
   const posTitle = posAsync.data?.title ?? positionParam
+
+  const [withdrawing, setWithdrawing] = useState(false)
+  const [withdrawn, setWithdrawn] = useState(false)
+
+  const handleWithdraw = async () => {
+    if (!window.confirm('确定要撤销本次投递吗？撤销后不可恢复。')) return
+    if (!supabase || !submissionId) return
+    setWithdrawing(true)
+    try {
+      const { error } = await supabase.from('submissions').delete().eq('id', submissionId)
+      if (error) throw error
+      setWithdrawn(true)
+    } catch (err) {
+      alert('撤销失败：' + (err instanceof Error ? err.message : String(err)))
+    } finally {
+      setWithdrawing(false)
+    }
+  }
 
   const skillTestHref = (companyParam && positionParam)
     ? `/skill-test?company=${companyParam}&position=${positionParam}`
@@ -50,6 +70,22 @@ export default function Success() {
         <Link to="/status" className="text-blue-600 dark:text-blue-400 hover:underline text-sm">
           或到状态查询页用手机号查进度 →
         </Link>
+
+        {withdrawn ? (
+          <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
+            <p className="text-sm text-green-600 dark:text-green-400">✅ 已成功撤销投递</p>
+          </div>
+        ) : (
+          <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
+            <button
+              onClick={() => void handleWithdraw()}
+              disabled={withdrawing}
+              className="text-sm text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:underline disabled:text-slate-400 disabled:no-underline"
+            >
+              {withdrawing ? '撤销中…' : '撤销投递'}
+            </button>
+          </div>
+        )}
       </div>
     </Page>
   )

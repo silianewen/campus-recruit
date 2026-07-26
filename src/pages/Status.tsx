@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { companyColor } from '../lib/companies'
 import { fetchAllPositions, type PositionRow } from '../lib/loaders'
 import { useAsync } from '../hooks/useAsync'
-import type { NotificationRow, SubmissionStatus } from '../lib/types'
+import type { SubmissionStatus } from '../lib/types'
 import { SUBMISSION_STATUS_LABEL } from '../lib/types'
 import { extractErrorMessage } from '../lib/errors'
 
@@ -43,7 +43,6 @@ export default function Status() {
   const [queried, setQueried] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submissions, setSubmissions] = useState<SubmissionView[]>([])
-  const [notifications, setNotifications] = useState<NotificationRow[]>([])
   const [personality, setPersonality] = useState<PersonalityView[]>([])
   const [skills, setSkills] = useState<SkillView[]>([])
 
@@ -74,17 +73,12 @@ export default function Status() {
     setLoading(true)
     setQueried(true)
     try {
-      const [subs, notifs, pers, sk] = await Promise.all([
+      const [subs, pers, sk] = await Promise.all([
         supabase
           .from('submissions')
           .select(`id, position_id, status, created_at, updated_at, company_id,
                    resume:resumes ( student_name, major, university, file_url )`)
           .eq('resumes.phone', p)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('notifications')
-          .select('*')
-          .eq('phone', p)
           .order('created_at', { ascending: false }),
         supabase
           .from('personality_results')
@@ -98,7 +92,7 @@ export default function Status() {
           .eq('phone', p)
           .order('created_at', { ascending: false }),
       ])
-      for (const r of [subs, notifs, pers, sk]) {
+      for (const r of [subs, pers, sk]) {
         if (r.error) throw r.error
       }
       setSubmissions(((subs.data ?? []) as any[]).map((d) => ({
@@ -106,7 +100,6 @@ export default function Status() {
         company_id: d.company_id ?? null,
         resume: Array.isArray(d.resume) ? d.resume[0] ?? null : d.resume ?? null,
       })))
-      setNotifications((notifs.data ?? []) as NotificationRow[])
       setPersonality((pers.data ?? []) as PersonalityView[])
       setSkills((sk.data ?? []) as SkillView[])
     } catch (err) {
@@ -116,8 +109,20 @@ export default function Status() {
     }
   }
 
+  const handleWithdraw = async (submissionId: string) => {
+    if (!window.confirm('确定要撤销此投递记录吗？撤销后不可恢复。')) return
+    if (!supabase) return
+    try {
+      const { error } = await supabase.from('submissions').delete().eq('id', submissionId)
+      if (error) throw error
+      setSubmissions((prev) => prev.filter((s) => s.id !== submissionId))
+    } catch (err) {
+      alert('撤销失败：' + (err instanceof Error ? err.message : String(err)))
+    }
+  }
+
   return (
-    <Page title="我的投递状态" subtitle="输入手机号查看投递进度、HR 通知、测评记录。">
+    <Page title="我的投递状态" subtitle="输入手机号查看投递进度、测评记录。">
       <form onSubmit={handleQuery} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 max-w-md mx-auto mb-6">
         <input
           type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
@@ -133,21 +138,6 @@ export default function Status() {
 
       {queried && !loading && !error && (
         <div className="max-w-2xl mx-auto space-y-4">
-          <Section title="📨 HR 通知" empty={notifications.length === 0 ? '暂无通知' : ''}>
-            {notifications.map((n) => (
-              <div key={n.id} className="border-b border-slate-100 dark:border-slate-700 last:border-0 py-3">
-                <div className="flex justify-between items-start">
-                  <div className="font-medium text-slate-900 dark:text-slate-100">{n.title}</div>
-                  <div className="text-xs text-slate-400 dark:text-slate-500">{new Date(n.created_at).toLocaleString('zh-CN')}</div>
-                </div>
-                <div className="text-sm text-slate-600 dark:text-slate-300 mt-1 whitespace-pre-wrap">{n.content}</div>
-                <div className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                  {n.read ? '已读' : '🔔 未读'} · {n.type === 'interview_invite' ? '面试邀请' : n.type === 'test_invite' ? '测评邀请' : '状态更新'}
-                </div>
-              </div>
-            ))}
-          </Section>
-
           <Section title="📄 我的投递" empty={submissions.length === 0 ? '暂无投递记录' : ''}>
             {submissions.map((s) => {
               const companyName = s.company_id ? companiesById[s.company_id] ?? s.company_id : null
@@ -179,6 +169,14 @@ export default function Status() {
                     className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1 inline-block">
                     查看简历 →
                   </a>
+                )}
+                {s.status === 'submitted' && (
+                  <button
+                    onClick={() => void handleWithdraw(s.id)}
+                    className="text-xs text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:underline mt-1 ml-3 inline-block"
+                  >
+                    撤销投递
+                  </button>
                 )}
               </div>
               )
