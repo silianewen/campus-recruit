@@ -4,6 +4,7 @@ import { useAsync } from '../hooks/useAsync'
 import { AsyncView } from '../components/AsyncView'
 import { fetchCompany, fetchPositionsForCompany, type PositionRow } from '../lib/loaders'
 import { companyColor, companyShortName } from '../lib/companies'
+import { ClosesAtBadge } from '../components/ClosesAtBadge'
 
 export default function CompanyDetail() {
   const { companyId } = useParams()
@@ -105,21 +106,32 @@ export default function CompanyDetail() {
           }
         >
           {(positions: PositionRow[]) => (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {positions.map((p) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {positions.map((p) => {
+                const closed = p.closes_at && new Date(p.closes_at).getTime() < Date.now()
+                return (
                 <Link
                   key={p.id}
-                  to={`/upload?company=${validId}&position=${p.id}`}
-                  className="block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500 transition"
+                  to={closed ? '#' : `/upload?company=${validId}&position=${p.id}`}
+                  aria-disabled={closed ? 'true' : 'false'}
+                  onClick={(e) => { if (closed) e.preventDefault() }}
+                  className={`block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 transition ${
+                    closed
+                      ? 'opacity-60 cursor-not-allowed'
+                      : 'hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500'
+                  }`}
                 >
-                  <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">
-                    {p.category ?? '—'}
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">{p.category ?? '—'}</span>
+                    <ClosesAtBadge closesAt={p.closes_at} />
                   </div>
                   <div className="font-semibold text-slate-900 dark:text-slate-100">{p.title}</div>
                   <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{p.description}</div>
-                  <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">点击投递 →</div>
+                  <div className={`text-xs mt-2 ${closed ? 'text-slate-400 dark:text-slate-500' : 'text-blue-600 dark:text-blue-400'}`}>
+                    {closed ? '已截止' : '点击投递 →'}
+                  </div>
                 </Link>
-              ))}
+              );})}
             </div>
           )}
         </AsyncView>

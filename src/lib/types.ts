@@ -14,6 +14,11 @@ export interface Position {
   // Drives the right-side category filter on the student page.
   // Supabase column `positions.category` (added in 0007).
   category?: string | null
+  // Optional soft deadline (Supabase column `positions.closes_at`, added in 0010).
+  // Past this timestamp, the student upload form shows "已截止" instead of
+  // the form. NOT auto-enforced by a backend job — a follow-up Edge Function
+  // would actually flip `is_active` to false past the deadline.
+  closes_at?: string | null
 }
 
 // CompanyId is set by user-provided data in src/lib/companies.ts.

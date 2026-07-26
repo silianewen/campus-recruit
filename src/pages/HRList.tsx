@@ -2,13 +2,24 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { supabase } from '../lib/supabase'
-import { fetchAllPositions, fetchCompanies, fetchDuplicatePhones, fetchCrossCompanyContext, type PositionRow, type CrossCompanyRow } from '../lib/loaders'
+import {
+  fetchAllPositions,
+  fetchCompanies,
+  fetchDuplicatePhones,
+  fetchCrossCompanyContext,
+  insertNotification,
+  type PositionRow,
+  type CrossCompanyRow,
+  type NotificationInsert,
+} from '../lib/loaders'
 import { useAsync } from '../hooks/useAsync'
 import { companyColor } from '../lib/companies'
+import { rowsToCsv, downloadCsv } from '../lib/csv'
 import type { HrScope, SubmissionStatus, HrGroup } from '../lib/types'
 import { SUBMISSION_STATUS_LABEL } from '../lib/types'
 
 const HR_AUTH_KEY = 'hr_auth'
+const CSV_ROW_CAP = 1000
 
 interface AuthRecord {
   user: { id: string; group_id: string }
@@ -71,6 +82,19 @@ export default function HRList() {
   // originating company group; default-group also gets it).
   const [crossCtx, setCrossCtx] = useState<Record<string, CrossCompanyRow[]>>({})
 
+  // P1: send-notification modal state
+  const [notifTarget, setNotifTarget] = useState<SubmissionRow | null>(null)
+  const [notifTitle, setNotifTitle] = useState('面试通知')
+  const [notifContent, setNotifContent] = useState(
+    '同学你好，你投递的岗位已进入面试环节，请回复本消息确认可面试时间。',
+  )
+  const [notifType, setNotifType] = useState<NotificationInsert['type']>('interview_invite')
+  const [notifSending, setNotifSending] = useState(false)
+  const [notifResult, setNotifResult] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  // P5: per-row "下载" success flash
+  const [downloadFlash, setDownloadFlash] = useState<Record<string, boolean>>({})
+
   const companiesAsync = useAsync(fetchCompanies, [])
   const positionsAsync = useAsync(fetchAllPositions, [])
   const dupePhonesAsync = useAsync(fetchDuplicatePhones, [])
@@ -86,13 +110,14 @@ export default function HRList() {
     return m
   }, [companiesAsync.data])
 
+  const auth = readAuth()
+  const scope = auth?.scope ?? null
+  const isReadOnly = scope?.kind === 'default'
+  const canSend = scope?.kind === 'admin' || scope?.kind === 'company'
+
   const fetchRows = async () => {
     if (!supabase) return
     setLoading(true)
-
-    // Apply scope filter: admin sees everything, company group sees only their
-    // company's submissions, default group also sees everything (read-only).
-    const auth = readAuth()
     if (!auth) return
     const companyFilter = auth.scope.kind === 'company' ? auth.scope.companyId : null
 
@@ -138,9 +163,6 @@ export default function HRList() {
       setSkillByPhonePos(s)
     }
 
-    // For companies that have duplicate phones, fetch cross-company context
-    // (one fetch per duplicated phone). Skipped for default-group users in
-    // the future — for now it's harmless overhead.
     const dupes = (normalized ?? []).filter((r) => r.resume?.phone)
     const uniqPhones = Array.from(new Set(dupes.map((r) => r.resume!.phone)))
     const ctxMap: Record<string, CrossCompanyRow[]> = {}
@@ -154,8 +176,6 @@ export default function HRList() {
   }
 
   useEffect(() => {
-    // Auth gate — admin or company-group. Default group is read-only.
-    const auth = readAuth()
     if (!auth) {
       navigate('/hr', { replace: true })
       return
@@ -185,8 +205,7 @@ export default function HRList() {
 
   const updateStatus = async (id: string, status: SubmissionStatus) => {
     if (!supabase) return
-    const auth = readAuth()
-    if (auth?.scope.kind === 'default') {
+    if (isReadOnly) {
       alert('默认分组只有只读权限，无法改状态')
       return
     }
@@ -195,13 +214,286 @@ export default function HRList() {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)))
   }
 
-  const auth = readAuth()
-  const scope = auth?.scope ?? null
-  const isReadOnly = scope?.kind === 'default'
+  // P1: send notification
+  const openNotifModal = (r: SubmissionRow) => {
+    if (!r.resume?.phone) return
+    setNotifTarget(r)
+    setNotifTitle('面试通知')
+    const companyName = r.company_id ? companyNameById[r.company_id] ?? r.company_id : ''
+    const posName = positionsById[r.position_id]?.title ?? r.position_id
+    setNotifContent(
+      `同学你好，你投递的 ${companyName ? companyName + ' · ' : ''}${posName} 岗位已进入面试环节，请回复本消息确认可面试时间。`,
+    )
+    setNotifType('interview_invite')
+    setNotifResult(null)
+  }
+  const closeNotifModal = () => {
+    setNotifTarget(null)
+    setNotifResult(null)
+  }
+  const sendNotif = async () => {
+    if (!notifTarget?.resume?.phone || !supabase) return
+    setNotifSending(true)
+    setNotifResult(null)
+    try {
+      await insertNotification({
+        phone: notifTarget.resume.phone,
+        title: notifTitle.trim() || '面试通知',
+        content: notifContent.trim(),
+        type: notifType,
+      })
+      setNotifResult({ ok: true, msg: '已发送 ✅' })
+      // Auto-flip status to 已约面 when sending an interview_invite
+      if (notifType === 'interview_invite' && notifTarget.status !== 'interview_scheduled') {
+        await supabase
+          .from('submissions')
+          .update({ status: 'interview_scheduled' })
+          .eq('id', notifTarget.id)
+        setRows((prev) => prev.map((r) => (r.id === notifTarget.id ? { ...r, status: 'interview_scheduled' } : r)))
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setNotifResult({ ok: false, msg: '发送失败：' + msg })
+    } finally {
+      setNotifSending(false)
+    }
+  }
+
+  // P3: CSV export
+  const exportCsv = () => {
+    if (filtered.length > CSV_ROW_CAP) {
+      alert(`筛选结果过大（${filtered.length} 条，上限 ${CSV_ROW_CAP}），请缩小范围`)
+      return
+    }
+    const headers = [
+      '姓名', '手机', '标记重复', '应聘公司', '职位', '学校 (学历)', '专业',
+      '性格 (MBTI)', '专业测试', '状态', '投递时间', '其它投递', '简历 URL',
+    ]
+    const body = filtered.map((r) => {
+      const phone = r.resume?.phone ?? ''
+      const isDup = !!phone && (dupePhonesAsync.data ?? []).includes(phone)
+      const otherApps = (crossCtx[phone] ?? [])
+        .map((x) => `${x.company_name}-${x.position_title}`)
+        .join('; ')
+      return [
+        r.resume?.student_name ?? '',
+        phone,
+        isDup ? '是' : '否',
+        r.company_id ? (companyNameById[r.company_id] ?? r.company_id) : '',
+        positionsById[r.position_id]?.title ?? r.position_id,
+        r.resume
+          ? `${r.resume.university ?? ''}${r.resume.degree ? ` (${r.resume.degree})` : ''}`
+          : '',
+        r.resume?.major ?? '',
+        phone ? (mbtiByPhone[phone] ?? '') : '',
+        phone ? (skillByPhonePos[`${phone}|${r.position_id}`]
+          ? `${skillByPhonePos[`${phone}|${r.position_id}`].score}/${skillByPhonePos[`${phone}|${r.position_id}`].total}`
+          : '') : '',
+        SUBMISSION_STATUS_LABEL[r.status] ?? r.status,
+        new Date(r.created_at).toLocaleString('zh-CN'),
+        otherApps,
+        r.resume?.file_url ?? '',
+      ]
+    })
+    const csv = rowsToCsv(headers, body)
+    const dateStr = new Date().toISOString().slice(0, 10)
+    const parts: string[] = ['投递简历', dateStr]
+    if (filterCompany !== 'all') parts.push(filterCompany)
+    if (filterPos !== 'all') parts.push(filterPos)
+    if (filterStatus !== 'all') parts.push(filterStatus)
+    if (filterDuplicate === 'only') parts.push('重复')
+    const filename = parts.join('_') + '.csv'
+    downloadCsv(filename, csv)
+  }
+
+  // P5: resume download
+  const handleDownload = (r: SubmissionRow) => {
+    if (!r.resume?.file_url) return
+    setDownloadFlash((m) => ({ ...m, [r.id]: true }))
+    setTimeout(() => setDownloadFlash((m) => { const { [r.id]: _, ...rest } = m; return rest }), 1500)
+  }
+
+  // Filter chips for the mobile card list
+  const renderCardList = () => (
+    <div className="sm:hidden space-y-3">
+      {filtered.length === 0 && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 text-center text-slate-400 dark:text-slate-500">
+          {loading ? '加载中…' : '暂无数据'}
+        </div>
+      )}
+      {filtered.map((r) => {
+        const phone = r.resume?.phone ?? ''
+        const isDup = !!phone && (dupePhonesAsync.data ?? []).includes(phone)
+        return (
+          <div key={r.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+            <div className="flex items-center justify-between mb-1">
+              <div className="font-medium text-slate-900 dark:text-slate-100">{r.resume?.student_name ?? '—'}</div>
+              {isDup && (
+                <span className="text-xs px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300">
+                  重复投递
+                </span>
+              )}
+            </div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 font-mono mb-1">{phone}</div>
+            <div className="text-sm text-slate-700 dark:text-slate-300 mb-1">
+              {r.company_id && (
+                <span>
+                  <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${companyColor(r.company_id)}`} />
+                  {companyNameById[r.company_id] ?? r.company_id}
+                </span>
+              )}{' '}
+              · {positionsById[r.position_id]?.title ?? r.position_id}
+            </div>
+            <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+              {r.resume?.university ?? '—'}{r.resume?.degree && ` (${r.resume.degree})`}
+            </div>
+            <div className="flex items-center justify-between">
+              <select value={r.status} onChange={(e) => void updateStatus(r.id, e.target.value as SubmissionStatus)}
+                className="px-2 py-0.5 border border-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded text-xs">
+                {(Object.keys(SUBMISSION_STATUS_LABEL) as SubmissionStatus[]).map((s) =>
+                  <option key={s} value={s}>{SUBMISSION_STATUS_LABEL[s]}</option>
+                )}
+              </select>
+              <div className="flex gap-3 text-xs">
+                {r.resume?.file_url && (
+                  <a href={r.resume.file_url} target="_blank" rel="noreferrer"
+                    className="text-blue-600 dark:text-blue-400 hover:underline">查看</a>
+                )}
+                {r.resume?.file_url && (
+                  <a href={r.resume.file_url} download={r.resume.file_name}
+                    onClick={() => handleDownload(r)}
+                    className="text-blue-600 dark:text-blue-400 hover:underline">
+                    {downloadFlash[r.id] ? '已下载 ✓' : '下载'}
+                  </a>
+                )}
+                {canSend && r.resume?.phone && (
+                  <button onClick={() => openNotifModal(r)} className="text-blue-600 dark:text-blue-400 hover:underline">
+                    通知
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+
+  // Desktop table
+  const renderTable = () => (
+    <div className="hidden sm:block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 text-left">
+          <tr>
+            <th className="px-3 py-2 whitespace-nowrap">姓名</th>
+            <th className="px-3 py-2 whitespace-nowrap">手机</th>
+            <th className="px-3 py-2 whitespace-nowrap">标记</th>
+            <th className="px-3 py-2 whitespace-nowrap">应聘公司</th>
+            <th className="px-3 py-2 whitespace-nowrap">职位</th>
+            <th className="px-3 py-2 whitespace-nowrap">学校</th>
+            <th className="px-3 py-2 whitespace-nowrap">专业</th>
+            <th className="px-3 py-2 whitespace-nowrap">性格（MBTI）</th>
+            <th className="px-3 py-2 whitespace-nowrap">专业测试结果</th>
+            <th className="px-3 py-2 whitespace-nowrap">状态</th>
+            <th className="px-3 py-2 whitespace-nowrap">投递时间</th>
+            <th className="px-3 py-2 whitespace-nowrap">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.length === 0 && (
+            <tr><td colSpan={12} className="px-3 py-8 text-center text-slate-400 dark:text-slate-500">
+              {loading ? '加载中…' : '暂无数据'}
+            </td></tr>
+          )}
+          {filtered.map((r) => {
+            const phone = r.resume?.phone ?? ''
+            const isDuplicate = !!phone && (dupePhonesAsync.data ?? []).includes(phone)
+            const mbti = phone ? mbtiByPhone[phone] : undefined
+            const skill = phone ? skillByPhonePos[`${phone}|${r.position_id}`] : undefined
+            return (
+              <tr key={r.id} className="border-t border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                <td className="px-3 py-2 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">{r.resume?.student_name ?? '—'}</td>
+                <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{r.resume?.phone ?? '—'}</td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  {isDuplicate && (
+                    <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300">
+                      重复投递
+                    </span>
+                  )}
+                  {isDuplicate && phone && crossCtx[phone] && crossCtx[phone].length > 0 && (
+                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      <span className="block">其它投递：</span>
+                      {crossCtx[phone].map((x) => (
+                        <span key={x.position_id} className="block">
+                          · {x.company_name} — {x.position_title}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  {r.company_id ? (
+                    <span>
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${companyColor(r.company_id)}`} />
+                      {companyNameById[r.company_id] ?? r.company_id}
+                    </span>
+                  ) : <span className="text-slate-300">—</span>}
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap">{positionsById[r.position_id]?.title ?? r.position_id}</td>
+                <td className="px-3 py-2 text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                  {r.resume?.university ?? '—'}
+                  {r.resume?.degree && (
+                    <span className="ml-1 text-xs text-slate-500 dark:text-slate-400">({r.resume.degree})</span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-slate-600 dark:text-slate-400 whitespace-nowrap">{r.resume?.major ?? '—'}</td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  {mbti ? (
+                    <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{mbti}</span>
+                  ) : <span className="text-slate-300">—</span>}
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  {skill ? (
+                    <span className="font-mono text-slate-900 dark:text-slate-100">{skill.score}/{skill.total}</span>
+                  ) : <span className="text-slate-300">—</span>}
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <select value={r.status} onChange={(e) => void updateStatus(r.id, e.target.value as SubmissionStatus)}
+                    className="px-2 py-0.5 border border-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded text-xs">
+                    {(Object.keys(SUBMISSION_STATUS_LABEL) as SubmissionStatus[]).map((s) =>
+                      <option key={s} value={s}>{SUBMISSION_STATUS_LABEL[s]}</option>
+                    )}
+                  </select>
+                </td>
+                <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{new Date(r.created_at).toLocaleString('zh-CN')}</td>
+                <td className="px-3 py-2 whitespace-nowrap space-x-2">
+                  {r.resume?.file_url && (
+                    <a href={r.resume.file_url} target="_blank" rel="noreferrer"
+                      className="text-blue-600 dark:text-blue-400 hover:underline text-xs">查看</a>
+                  )}
+                  {r.resume?.file_url && (
+                    <a href={r.resume.file_url} download={r.resume.file_name}
+                      onClick={() => handleDownload(r)}
+                      className="text-blue-600 dark:text-blue-400 hover:underline text-xs">
+                      {downloadFlash[r.id] ? '已下载 ✓' : '下载'}
+                    </a>
+                  )}
+                  {canSend && r.resume?.phone && (
+                    <button onClick={() => openNotifModal(r)} className="text-blue-600 dark:text-blue-400 hover:underline text-xs">
+                      通知
+                    </button>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
 
   return (
     <Page title="投递简历列表">
-      {/* Filters */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         {scope?.kind !== 'company' && (
           <select value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}
@@ -241,6 +533,10 @@ export default function HRList() {
           className="px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-900 dark:text-slate-100 rounded-lg text-sm">
           {loading ? '加载中…' : '刷新'}
         </button>
+        <button onClick={exportCsv}
+          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm">
+          导出 CSV
+        </button>
         <span className="text-sm text-slate-500 dark:text-slate-400">共 {filtered.length} 条</span>
       </div>
 
@@ -250,106 +546,46 @@ export default function HRList() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 text-left">
-            <tr>
-              <th className="px-3 py-2 whitespace-nowrap">姓名</th>
-              <th className="px-3 py-2 whitespace-nowrap">手机</th>
-              <th className="px-3 py-2 whitespace-nowrap">标记</th>
-              <th className="px-3 py-2 whitespace-nowrap">应聘公司</th>
-              <th className="px-3 py-2 whitespace-nowrap">职位</th>
-              <th className="px-3 py-2 whitespace-nowrap">学校</th>
-              <th className="px-3 py-2 whitespace-nowrap">专业</th>
-              <th className="px-3 py-2 whitespace-nowrap">性格（MBTI）</th>
-              <th className="px-3 py-2 whitespace-nowrap">专业测试结果</th>
-              <th className="px-3 py-2 whitespace-nowrap">状态</th>
-              <th className="px-3 py-2 whitespace-nowrap">投递时间</th>
-              <th className="px-3 py-2 whitespace-nowrap">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 && (
-              <tr><td colSpan={12} className="px-3 py-8 text-center text-slate-400 dark:text-slate-500">
-                {loading ? '加载中…' : '暂无数据'}
-              </td></tr>
+      {renderCardList()}
+      {renderTable()}
+
+      {/* Send notification modal (P1) */}
+      {notifTarget && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-1">发送通知</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              收件人：{notifTarget.resume?.student_name}（{notifTarget.resume?.phone}）
+            </p>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">标题</label>
+            <input value={notifTitle} onChange={(e) => setNotifTitle(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg mb-3" />
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">类型</label>
+            <select value={notifType} onChange={(e) => setNotifType(e.target.value as NotificationInsert['type'])}
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg mb-3">
+              <option value="interview_invite">面试邀请</option>
+              <option value="test_invite">测评邀请</option>
+              <option value="status_update">状态更新</option>
+            </select>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">内容</label>
+            <textarea value={notifContent} onChange={(e) => setNotifContent(e.target.value)} rows={4}
+              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg mb-3" />
+            {notifResult && (
+              <p className={`text-sm mb-3 ${notifResult.ok ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                {notifResult.msg}
+              </p>
             )}
-            {filtered.map((r) => {
-              const phone = r.resume?.phone ?? ''
-              const isDuplicate = !!phone && (dupePhonesAsync.data ?? []).includes(phone)
-              const mbti = phone ? mbtiByPhone[phone] : undefined
-              const skill = phone ? skillByPhonePos[`${phone}|${r.position_id}`] : undefined
-              return (
-                <tr key={r.id} className="border-t border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30">
-                  <td className="px-3 py-2 font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">{r.resume?.student_name ?? '—'}</td>
-                  <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{r.resume?.phone ?? '—'}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    {isDuplicate && (
-                      <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300">
-                        重复投递
-                      </span>
-                    )}
-                    {isDuplicate && phone && crossCtx[phone] && crossCtx[phone].length > 0 && (
-                      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        <span className="block">其它投递：</span>
-                        {crossCtx[phone].map((x) => (
-                          <span key={x.position_id} className="block">
-                            · {x.company_name} — {x.position_title}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    {r.company_id ? (
-                      <span>
-                        <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${companyColor(r.company_id)}`} />
-                        {companyNameById[r.company_id] ?? r.company_id}
-                      </span>
-                    ) : <span className="text-slate-300">—</span>}
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap">{positionsById[r.position_id]?.title ?? r.position_id}</td>
-                  <td className="px-3 py-2 text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                    {r.resume?.university ?? '—'}
-                    {r.resume?.degree && (
-                      <span className="ml-1 text-xs text-slate-500 dark:text-slate-400">({r.resume.degree})</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-slate-600 dark:text-slate-400 whitespace-nowrap">{r.resume?.major ?? '—'}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    {mbti ? (
-                      <span className="font-mono font-bold text-blue-600 dark:text-blue-400">{mbti}</span>
-                    ) : <span className="text-slate-300">—</span>}
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    {skill ? (
-                      <span className="font-mono text-slate-900 dark:text-slate-100">{skill.score}/{skill.total}</span>
-                    ) : <span className="text-slate-300">—</span>}
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    <select value={r.status} onChange={(e) => void updateStatus(r.id, e.target.value as SubmissionStatus)}
-                      className="px-2 py-0.5 border border-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded text-xs">
-                      {(Object.keys(SUBMISSION_STATUS_LABEL) as SubmissionStatus[]).map((s) =>
-                        <option key={s} value={s}>{SUBMISSION_STATUS_LABEL[s]}</option>
-                      )}
-                    </select>
-                  </td>
-                  <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{new Date(r.created_at).toLocaleString('zh-CN')}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    {r.resume?.file_url && (
-                      <a href={r.resume.file_url} target="_blank" rel="noreferrer"
-                        className="text-blue-600 dark:text-blue-400 hover:underline text-xs">
-                        简历
-                      </a>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={closeNotifModal}
+                className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">取消</button>
+              <button onClick={() => void sendNotif()} disabled={notifSending}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-400 dark:disabled:bg-slate-700">
+                {notifSending ? '发送中…' : '发送'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Page>
   )
 }

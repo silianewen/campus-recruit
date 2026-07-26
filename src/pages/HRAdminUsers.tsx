@@ -7,8 +7,10 @@ import {
   deleteHrUser,
   fetchHrGroups,
   fetchHrUsers,
+  updateHrUser,
 } from '../lib/loaders'
 import { useAsync } from '../hooks/useAsync'
+import type { HrUser } from '../lib/types'
 
 const HR_AUTH_KEY = 'hr_auth'
 
@@ -39,6 +41,7 @@ export default function HRAdminUsers() {
   const groupsAsync = useAsync(fetchHrGroups, [])
   const usersAsync = useAsync(fetchHrUsers, [])
 
+  // Create form
   const [showCreate, setShowCreate] = useState(false)
   const [newUsername, setNewUsername] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -46,6 +49,16 @@ export default function HRAdminUsers() {
   const [newGroupId, setNewGroupId] = useState('')
   const [createError, setCreateError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+
+  // Edit modal (P6)
+  const [editing, setEditing] = useState<HrUser | null>(null)
+  const [editUsername, setEditUsername] = useState('')
+  const [editDisplayName, setEditDisplayName] = useState('')
+  const [editPassword, setEditPassword] = useState('')
+  const [editError, setEditError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  // Delete
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const groups = groupsAsync.data ?? []
@@ -83,6 +96,53 @@ export default function HRAdminUsers() {
       setCreateError('创建失败：' + (err instanceof Error ? err.message : String(err)))
     } finally {
       setCreating(false)
+    }
+  }
+
+  // P6: open edit modal pre-filled with current values
+  const openEdit = (u: HrUser) => {
+    setEditing(u)
+    setEditUsername(u.username)
+    setEditDisplayName(u.display_name ?? '')
+    setEditPassword('')
+    setEditError(null)
+  }
+  const closeEdit = () => {
+    setEditing(null)
+    setEditError(null)
+  }
+  const saveEdit = async () => {
+    if (!editing) return
+    if (!editUsername.trim()) {
+      setEditError('用户名必填')
+      return
+    }
+    if (editPassword && editPassword.length < 6) {
+      setEditError('新密码至少 6 位（不填则保持原密码）')
+      return
+    }
+    setSaving(true)
+    setEditError(null)
+    try {
+      const patch: Parameters<typeof updateHrUser>[1] = {
+        username: editUsername.trim(),
+        display_name: editDisplayName.trim() || null,
+      }
+      if (editPassword) {
+        patch.password_hash = await hashPassword(editUsername.trim(), editPassword)
+      }
+      await updateHrUser(editing.id, patch)
+      refresh()
+      closeEdit()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('23505') || msg.includes('duplicate key') || msg.includes('already exists')) {
+        setEditError('用户名已存在，请换一个')
+      } else {
+        setEditError('保存失败：' + msg)
+      }
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -181,14 +241,26 @@ export default function HRAdminUsers() {
                 <td className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
                   {new Date(u.created_at).toLocaleString('zh-CN')}
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 space-x-3 whitespace-nowrap">
                   {u.id !== auth.user.id ? (
+                    <button
+                      type="button"
+                      onClick={() => openEdit(u)}
+                      title="修改用户名 / 显示名 / 密码"
+                      className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
+                    >
+                      编辑
+                    </button>
+                  ) : (
+                    <span className="text-xs text-slate-400 dark:text-slate-500" title="不能编辑自己（避免自锁）">
+                      （自己）
+                    </span>
+                  )}
+                  {u.id !== auth.user.id && (
                     <button type="button" onClick={() => void handleDelete(u.id, u.username)}
                       className="text-red-600 dark:text-red-400 hover:underline text-xs">
                       删除
                     </button>
-                  ) : (
-                    <span className="text-xs text-slate-400 dark:text-slate-500">（自己）</span>
                   )}
                 </td>
               </tr>
@@ -196,6 +268,39 @@ export default function HRAdminUsers() {
           </tbody>
         </table>
       </div>
+
+      {/* Edit modal (P6) */}
+      {editing && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">编辑用户</h3>
+            {editError && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{editError}</p>}
+            <div className="space-y-3">
+              <Field label="用户名">
+                <input type="text" value={editUsername} onChange={(e) => setEditUsername(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+              </Field>
+              <Field label="显示名">
+                <input type="text" value={editDisplayName} onChange={(e) => setEditDisplayName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+              </Field>
+              <Field label="新密码（留空则保持原密码）">
+                <input type="password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)}
+                  placeholder="≥6 位"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+              </Field>
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={closeEdit}
+                className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">取消</button>
+              <button onClick={() => void saveEdit()} disabled={saving}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-400 dark:disabled:bg-slate-700">
+                {saving ? '保存中…' : '保存'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <p className="text-xs text-slate-500 dark:text-slate-400 mt-4">
         注：当前 HR 密码用 SHA-256 + 用户名做盐的客户端 hash。这是 MVP 简化实现，

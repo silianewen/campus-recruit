@@ -137,9 +137,6 @@ export default function HR() {
             className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-slate-400 dark:disabled:bg-slate-700">
             {submitting ? '登录中…' : '进入'}
           </button>
-          <p className="text-xs text-slate-400 dark:text-slate-500 text-center">
-            默认管理员账号：<code>admin</code> / <code>Admin@2026</code>
-          </p>
         </form>
       </div>
     )

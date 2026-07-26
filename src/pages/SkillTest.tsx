@@ -15,6 +15,7 @@ import {
 import { useAsync } from '../hooks/useAsync'
 import { AsyncView } from '../components/AsyncView'
 import { extractErrorMessage } from '../lib/errors'
+import { ClosesAtBadge } from '../components/ClosesAtBadge'
 import type { Company, SkillQuestion } from '../lib/types'
 
 export default function SkillTest() {
@@ -210,7 +211,10 @@ export default function SkillTest() {
                             to={`/skill-test?company=${c.id}&position=${p.id}`}
                             className="block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500 transition"
                           >
-                            <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">{p.category ?? '—'}</div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs text-slate-500 dark:text-slate-400">{p.category ?? '—'}</span>
+                              <ClosesAtBadge closesAt={p.closes_at} />
+                            </div>
                             <div className="font-medium text-slate-900 dark:text-slate-100">{p.title}</div>
                             <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">开始测试 →</div>
                           </Link>

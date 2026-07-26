@@ -154,6 +154,34 @@ export default function Upload() {
   const posTitle = pos?.title ?? positionId
   const compTitle = companyName ?? companyId
 
+  // P2: closed-position guard — if closes_at is set and in the past, show
+  // a friendly "已截止" page instead of the form.
+  const closesAt = pos?.closes_at
+  const isClosed = !!closesAt && new Date(closesAt).getTime() < Date.now()
+
+  if (isClosed) {
+    return (
+      <Page
+        title={`投递：${posTitle}`}
+        subtitle={`公司：${compTitle} · 岗位：${posTitle}`}
+        backTo={companyId ? `/companies/${companyId}` : undefined}
+        backLabel="返回公司详情"
+      >
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 sm:p-8 max-w-md mx-auto text-center text-slate-700 dark:text-slate-300">
+          <div className="text-5xl mb-3">⏰</div>
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">该岗位已于 {new Date(closesAt!).toLocaleDateString('zh-CN')} 截止</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">不再接受新的投递。</p>
+          <a
+            href={companyId ? `/companies/${companyId}` : '/'}
+            className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            ← 返回公司详情
+          </a>
+        </div>
+      </Page>
+    )
+  }
+
   return (
     <Page
       title={`投递：${posTitle}`}

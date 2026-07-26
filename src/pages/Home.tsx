@@ -73,7 +73,7 @@ export default function Home() {
           }
         >
           {() => (
-            <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <section className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
               {(companiesAsync.data ?? []).map((c) => {
                 const count = positionCountByCompanyId[c.id] ?? 0
                 return (
@@ -100,7 +100,7 @@ export default function Home() {
         </AsyncView>
 
         {/* Bottom — assessment + status */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <Link to="/personality" className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 hover:shadow-md transition">
             <div className="text-2xl mb-2">🧠</div>
             <div className="font-semibold text-slate-900 dark:text-slate-100">性格测评</div>

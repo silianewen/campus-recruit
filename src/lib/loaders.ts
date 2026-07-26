@@ -13,6 +13,7 @@ export interface PositionRow {
   title: string
   description: string
   category?: string | null
+  closes_at?: string | null
 }
 
 export async function fetchCompanies(): Promise<Company[]> {
@@ -29,7 +30,7 @@ export async function fetchAllPositions(): Promise<PositionRow[]> {
   if (!supabase) return []
   const { data, error } = await supabase
     .from('positions')
-    .select('id, title, description, category')
+    .select('id, title, description, category, closes_at')
     .order('id', { ascending: true })
   if (error) throw error
   return (data ?? []) as PositionRow[]
@@ -50,7 +51,7 @@ export async function fetchPositionsForCompany(companyId: string): Promise<Posit
   const escaped = companyId.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
   const { data, error } = await supabase
     .from('positions')
-    .select('id, title, description, category')
+    .select('id, title, description, category, closes_at')
     .like('id', `${escaped}-%`)
     .order('title', { ascending: true })
   if (error) throw error
@@ -62,7 +63,7 @@ export async function fetchPositionsByCategory(category: string): Promise<Positi
   if (!supabase) return []
   const { data, error } = await supabase
     .from('positions')
-    .select('id, title, description, category')
+    .select('id, title, description, category, closes_at')
     .eq('category', category)
     .order('id', { ascending: true })
   if (error) throw error
@@ -73,7 +74,7 @@ export async function fetchPosition(positionId: string): Promise<PositionRow | n
   if (!supabase) return null
   const { data, error } = await supabase
     .from('positions')
-    .select('id, title, description, category')
+    .select('id, title, description, category, closes_at')
     .eq('id', positionId)
     .maybeSingle()
   if (error) throw error
@@ -229,6 +230,58 @@ export async function createHrUser(input: {
 export async function deleteHrUser(id: string): Promise<void> {
   if (!supabase) return
   const { error } = await supabase.from('hr_users').delete().eq('id', id)
+  if (error) throw error
+}
+
+/**
+ * Edit an existing HR user. All fields are optional — only those provided are
+ * updated. Username uniqueness is enforced by the DB (hr_users.username UNIQUE);
+ * on conflict, Supabase returns a 23505 error which surfaces to the UI.
+ */
+export async function updateHrUser(
+  id: string,
+  patch: {
+    username?: string
+    display_name?: string | null
+    password_hash?: string
+  },
+): Promise<HrUser | null> {
+  if (!supabase) return null
+  const update: Record<string, unknown> = {}
+  if (patch.username !== undefined) update.username = patch.username
+  if (patch.display_name !== undefined) update.display_name = patch.display_name
+  if (patch.password_hash !== undefined) update.password_hash = patch.password_hash
+  if (Object.keys(update).length === 0) return null
+  const { data, error } = await supabase
+    .from('hr_users')
+    .update(update)
+    .eq('id', id)
+    .select('id, username, display_name, group_id, created_at')
+    .maybeSingle()
+  if (error) throw error
+  return (data ?? null) as HrUser | null
+}
+
+// =========================================================================
+// HR → student notifications (P1)
+// =========================================================================
+
+export interface NotificationInsert {
+  phone: string
+  title: string
+  content: string
+  /** One of 'interview_invite' | 'test_invite' | 'status_update'. */
+  type: 'interview_invite' | 'test_invite' | 'status_update'
+}
+
+export async function insertNotification(input: NotificationInsert): Promise<void> {
+  if (!supabase) return
+  const { error } = await supabase.from('notifications').insert({
+    phone: input.phone,
+    title: input.title,
+    content: input.content,
+    type: input.type,
+  })
   if (error) throw error
 }
 
