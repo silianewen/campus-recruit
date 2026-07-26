@@ -44,10 +44,14 @@ export async function fetchAllPositions(): Promise<PositionRow[]> {
  */
 export async function fetchPositionsForCompany(companyId: string): Promise<PositionRow[]> {
   if (!supabase) return []
+  // Escape LIKE wildcards in the user-controlled id; otherwise `/companies/abc%`
+  // would match `abcX-...` (any single char before '-'), letting unauthenticated
+  // visitors enumerate positions across companies.
+  const escaped = companyId.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
   const { data, error } = await supabase
     .from('positions')
     .select('id, title, description, category')
-    .like('id', `${companyId}-%`)
+    .like('id', `${escaped}-%`)
     .order('title', { ascending: true })
   if (error) throw error
   return (data ?? []) as PositionRow[]

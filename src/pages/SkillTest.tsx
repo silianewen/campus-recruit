@@ -6,6 +6,7 @@ import { companyColor, isCompanyId } from '../lib/companies'
 import { isPositionId } from '../lib/positions'
 import {
   fetchCompanies,
+  fetchCompany,
   fetchAllPositions,
   fetchPosition,
   fetchQuestionsForPosition,
@@ -57,6 +58,14 @@ export default function SkillTest() {
     [directEntry]
   )
 
+  // In direct-entry mode the picker async above is empty, so we also fetch
+  // the single company record to render a human-readable subtitle and a
+  // fallback if the record is missing.
+  const directCompanyAsync = useAsync(
+    () => directEntry && companyId ? fetchCompany(companyId) : Promise.resolve(null),
+    [directEntry, companyId]
+  )
+
   const questions = questionsAsync.data ?? []
   const total = questions.length
   const answered = Object.keys(answers).length
@@ -64,9 +73,9 @@ export default function SkillTest() {
   const current = questions[idx]
 
   const posTitle = posAsync.data?.title ?? positionId ?? '专业能力测试'
-  const companyName = companyId
-    ? companiesAsync.data?.find((c) => c.id === companyId)?.name ?? companyId
-    : null
+  const companyName = directEntry
+    ? (directCompanyAsync.data?.name ?? companyId ?? null)
+    : (companyId ? companiesAsync.data?.find((c) => c.id === companyId)?.name ?? null : null)
 
   // Group positions by company for picker rendering.
   const positionsByCompanyId = useMemo<Record<string, PositionRow[]>>(() => {
@@ -135,7 +144,7 @@ export default function SkillTest() {
     setPhone('')
   }
 
-  const subtitle = `${companyName ?? ''}${companyName ? ' · ' : ''}${posTitle}`
+  const subtitle = [companyName, posTitle].filter(Boolean).join(' · ')
 
   // ============================================================
   // Mode: picker (no URL params) — show all companies + their positions
@@ -176,35 +185,41 @@ export default function SkillTest() {
         >
           {() => (
             <div className="space-y-6">
-              {filteredCompanies.map((c: Company) => {
-                const positions = positionsByCompanyId[c.id] ?? []
-                if (positions.length === 0) return null
-                return (
-                  <section
-                    key={c.id}
-                    className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5"
-                  >
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className={`inline-block w-2 h-2 rounded-full ${companyColor(c.id)}`} />
-                      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{c.name}</h3>
-                      <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto">{positions.length} 个岗位</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {positions.map((p) => (
-                        <Link
-                          key={p.id}
-                          to={`/skill-test?company=${c.id}&position=${p.id}`}
-                          className="block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500 transition"
-                        >
-                          <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">{p.category ?? '—'}</div>
-                          <div className="font-medium text-slate-900 dark:text-slate-100">{p.title}</div>
-                          <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">开始测试 →</div>
-                        </Link>
-                      ))}
-                    </div>
-                  </section>
-                )
-              })}
+              {filteredCompanies.length === 0 ? (
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-10 text-center text-slate-500 dark:text-slate-400">
+                  该筛选条件下暂无岗位，请切换公司。
+                </div>
+              ) : (
+                filteredCompanies.map((c: Company) => {
+                  const positions = positionsByCompanyId[c.id] ?? []
+                  if (positions.length === 0) return null
+                  return (
+                    <section
+                      key={c.id}
+                      className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5"
+                    >
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className={`inline-block w-2 h-2 rounded-full ${companyColor(c.id)}`} />
+                        <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{c.name}</h3>
+                        <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto">{positions.length} 个岗位</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {positions.map((p) => (
+                          <Link
+                            key={p.id}
+                            to={`/skill-test?company=${c.id}&position=${p.id}`}
+                            className="block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500 transition"
+                          >
+                            <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">{p.category ?? '—'}</div>
+                            <div className="font-medium text-slate-900 dark:text-slate-100">{p.title}</div>
+                            <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">开始测试 →</div>
+                          </Link>
+                        ))}
+                      </div>
+                    </section>
+                  )
+                })
+              )}
             </div>
           )}
         </AsyncView>

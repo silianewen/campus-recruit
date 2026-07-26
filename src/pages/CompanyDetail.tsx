@@ -3,19 +3,23 @@ import { Page } from '../components/Page'
 import { useAsync } from '../hooks/useAsync'
 import { AsyncView } from '../components/AsyncView'
 import { fetchCompany, fetchPositionsForCompany, type PositionRow } from '../lib/loaders'
-import { companyColor, companyShortName, isCompanyId } from '../lib/companies'
-import { isPositionId } from '../lib/positions'
+import { companyColor, companyShortName } from '../lib/companies'
 
 export default function CompanyDetail() {
   const { companyId } = useParams()
 
-  const validId = companyId && isCompanyId(companyId) ? companyId : null
+  const validId = companyId && companyId.length > 0 ? companyId : null
 
   const companyAsync = useAsync(() => validId ? fetchCompany(validId) : Promise.resolve(null), [validId])
   const positionsAsync = useAsync<PositionRow[]>(
     () => validId ? fetchPositionsForCompany(validId) : Promise.resolve([]),
     [validId]
   )
+
+  // Truthy if the fetch completed and returned null — i.e. the id is valid
+  // format but the company does not exist in the DB. Show a clear message
+  // instead of the generic AsyncView "暂无数据" placeholder.
+  const notFound = !companyAsync.loading && !companyAsync.error && companyAsync.data === null
 
   if (!validId) {
     return (
@@ -28,9 +32,22 @@ export default function CompanyDetail() {
     )
   }
 
-  const company = companyAsync.data
+  if (notFound) {
+    return (
+      <Page title="公司不存在" backTo="/" backLabel="返回投递首页">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 text-center text-slate-600 dark:text-slate-300">
+          <p className="mb-2 text-lg">公司不存在</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+            链接里的公司 ID 找不到：<code className="text-xs">{validId}</code>
+          </p>
+          <Link to="/" className="text-blue-600 dark:text-blue-400 hover:underline">← 返回投递首页</Link>
+        </div>
+      </Page>
+    )
+  }
+
   const headerTitle = companyShortName(validId) // 简称放头部
-  const companyName = company?.name ?? validId
+  const companyName = companyAsync.data?.name ?? validId
 
   return (
     <Page
@@ -40,7 +57,7 @@ export default function CompanyDetail() {
       backLabel="返回投递首页"
     >
       <AsyncView
-        data={company}
+        data={companyAsync.data}
         loading={companyAsync.loading}
         error={companyAsync.error}
         refetch={companyAsync.refetch}
@@ -92,11 +109,7 @@ export default function CompanyDetail() {
               {positions.map((p) => (
                 <Link
                   key={p.id}
-                  to={
-                    isCompanyId(validId) && isPositionId(p.id)
-                      ? `/upload?company=${validId}&position=${p.id}`
-                      : `/upload?position=${p.id}`
-                  }
+                  to={`/upload?company=${validId}&position=${p.id}`}
                   className="block rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500 transition"
                 >
                   <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">

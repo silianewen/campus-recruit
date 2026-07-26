@@ -8,7 +8,9 @@ const HR_PASSWORD = import.meta.env.VITE_HR_PASSWORD as string | undefined
 export default function HR() {
   const navigate = useNavigate()
   const authed = sessionStorage.getItem(HR_SESSION_KEY) === 'true'
-  const homeUrl = typeof window !== 'undefined' ? window.location.origin + '/' : 'https://campusrecruitment.vercel.app/'
+  // Vite is CSR; `window` is guaranteed at runtime. Avoid hardcoding a domain
+  // here so a staging or custom-domain deploy reflects the real origin.
+  const homeUrl = (typeof window !== 'undefined' ? window.location.origin : 'https://campusrecruitment.vercel.app') + '/'
 
   // ============================================================
   // Login form (pre-auth) — centered title + top bar (logo · 返回学生投递平台 + toggle)

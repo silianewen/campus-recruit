@@ -79,6 +79,7 @@ export default function Home() {
                 return (
                   <button
                     key={c.id}
+                    type="button"
                     onClick={() => navigate(`/companies/${c.id}`)}
                     className="text-left bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500 transition"
                   >
