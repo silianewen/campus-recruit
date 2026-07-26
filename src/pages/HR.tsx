@@ -1,5 +1,4 @@
 import { useNavigate } from 'react-router-dom'
-import { useLocation } from 'react-router-dom'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { QrDownload } from '../components/QrDownload'
 
@@ -8,38 +7,42 @@ const HR_PASSWORD = import.meta.env.VITE_HR_PASSWORD as string | undefined
 
 export default function HR() {
   const navigate = useNavigate()
-  const location = useLocation()
   const authed = sessionStorage.getItem(HR_SESSION_KEY) === 'true'
   const homeUrl = typeof window !== 'undefined' ? window.location.origin + '/' : 'https://campusrecruitment.vercel.app/'
 
-  // Smart back button: history if available, else "/" (student home).
-  const hasHistory = location.key !== 'default'
-  const goBack = () => hasHistory ? navigate(-1) : navigate('/')
-
   // ============================================================
-  // Login form (pre-auth) — centered, simple
+  // Login form (pre-auth) — centered title + top bar (logo · 返回学生投递平台 + toggle)
   // ============================================================
   if (!authed) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center px-4">
-        {/* Top bar: logo (left) · back button + theme toggle (right) */}
-        <div className="fixed top-0 left-0 right-0 px-4 py-3 flex items-center justify-between pointer-events-none">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col px-4">
+        {/* Top bar: logo (left) · 返回学生投递平台 + theme toggle (right) */}
+        <div className="w-full px-4 py-3 flex items-center justify-between">
           <div
-            className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold text-xl shadow-md pointer-events-auto"
+            className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold text-xl shadow-md"
             aria-label="中南创发集团 logo 占位"
           >
             中
           </div>
-          <div className="flex items-center gap-2 pointer-events-auto">
+          <div className="flex items-center gap-2">
             <button
-              onClick={goBack}
-              className="px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 pointer-events-auto"
+              onClick={() => navigate('/')}
+              className="px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
             >
-              ← 返回上一页
+              ← 返回学生投递平台
             </button>
             <ThemeToggle />
           </div>
         </div>
+
+        {/* Centered title */}
+        <div className="text-center mt-8 mb-8">
+          <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100">
+            中南创发校招HR管理后台
+          </h1>
+        </div>
+
+        {/* Login form */}
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -53,7 +56,7 @@ export default function HR() {
               alert('密码错误')
             }
           }}
-          className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 max-w-sm w-full mt-16"
+          className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8 max-w-sm w-full mx-auto"
         >
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4 text-center">HR 登录</h2>
           {!HR_PASSWORD ? (
@@ -64,6 +67,7 @@ export default function HR() {
             <>
               <input
                 name="pwd" type="password" placeholder="HR 密码"
+                autoFocus
                 className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg mb-3 focus:ring-2 focus:ring-blue-500 outline-none"
               />
               <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
