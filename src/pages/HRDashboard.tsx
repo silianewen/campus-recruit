@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import type { EChartsOption } from 'echarts'
 import { Page } from '../components/Page'
 import { EChart } from '../components/EChart'
 import { supabase } from '../lib/supabase'
@@ -217,8 +218,8 @@ export default function HRDashboard() {
   // -------------------------------------------------------------------------
   // ECharts options
   // -------------------------------------------------------------------------
-  // Multi-series horizontal bar: 投递数 / 约面数 / offer 数 per position.
-  // Grouped by company in the labels; long titles won't collide on mobile.
+  // Stacked horizontal bar per position: 投递数 / 约面数 / offer 数
+  //   stacked into a single bar; each segment shows its value in the middle.
   const positionBarOption = useMemo(() => ({
     backgroundColor: 'transparent',
     title: { text: '各职位 投递 / 约面 / offer', left: 'center', textStyle: { fontSize: 14, color: isDark ? '#f1f5f9' : '#0f172a' } },
@@ -244,26 +245,50 @@ export default function HRDashboard() {
       {
         name: '投递数',
         type: 'bar' as const,
+        stack: 'total',
         data: positionsGrouped.total,
-        itemStyle: { color: colorPalette[0], borderRadius: [0, 4, 4, 0] },
-        label: { show: true, position: 'right' as const, color: isDark ? '#f1f5f9' : '#0f172a', fontSize: 11 },
+        itemStyle: { color: colorPalette[0] },
+        label: {
+          show: true,
+          position: 'inside' as const,
+          color: '#ffffff',
+          fontSize: 11,
+          fontWeight: 'bold',
+          formatter: (p: any) => (p.value > 0 ? p.value : ''),
+        },
       },
       {
         name: '约面数',
         type: 'bar' as const,
+        stack: 'total',
         data: positionsGrouped.scheduled,
-        itemStyle: { color: colorPalette[1], borderRadius: [0, 4, 4, 0] },
-        label: { show: true, position: 'right' as const, color: isDark ? '#f1f5f9' : '#0f172a', fontSize: 11 },
+        itemStyle: { color: colorPalette[1] },
+        label: {
+          show: true,
+          position: 'inside' as const,
+          color: '#ffffff',
+          fontSize: 11,
+          fontWeight: 'bold',
+          formatter: (p: any) => (p.value > 0 ? p.value : ''),
+        },
       },
       {
         name: 'offer 数',
         type: 'bar' as const,
+        stack: 'total',
         data: positionsGrouped.offered,
         itemStyle: { color: colorPalette[2], borderRadius: [0, 4, 4, 0] },
-        label: { show: true, position: 'right' as const, color: isDark ? '#f1f5f9' : '#0f172a', fontSize: 11 },
+        label: {
+          show: true,
+          position: 'inside' as const,
+          color: '#ffffff',
+          fontSize: 11,
+          fontWeight: 'bold',
+          formatter: (p: any) => (p.value > 0 ? p.value : ''),
+        },
       },
     ],
-  }), [positionsGrouped, isDark, colorPalette])
+  }), [positionsGrouped, isDark, colorPalette]) as unknown as EChartsOption
 
   // (P9: stacked bar chart removed; horizontal bar + 3 pies now)
 
