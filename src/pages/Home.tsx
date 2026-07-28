@@ -56,7 +56,23 @@ export default function Home() {
             <span className="inline-block w-1.5 h-4 rounded-sm bg-blue-500" />
             中南创发集团简介
           </h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400 italic">集团简介待补充</p>
+          <div className="text-sm text-slate-700 dark:text-slate-300 space-y-2 leading-relaxed">
+            <p>
+              中南创发集团于 1935 年在香港创建，以科技材料、精密工程技术为平台，专注于镁铝合金、玻璃、高级钟表零件、触摸屏、不锈钢、钛金属材料、陶瓷等开发，在美国硅谷、瑞士、英国设有公司，掌握触摸面板、金属注射成型等核心技术，在行业内处于领先地位。与英国牛津大学、香港科技大学有着良好合作关系，在科学材料应用于新领域方面进行广泛研究与开发。
+            </p>
+            <p>
+              我们在香港、深圳、广州、珠海、赤壁、天津、台湾、泰国、越南、英国等地均设有工厂和办公室，拥有员工 12000 多名，有现代化的厂房和先进的设备生产线。
+            </p>
+            <p>
+              旗下 BU 包括但不限于：昶联金属材料应用制品（广州）有限公司、中南机诚精密制品（深圳）有限公司、中南智诚科技（东莞）有限公司、英硕激光科技（珠海）有限公司、中南雅园产业管理（深圳）有限公司。
+            </p>
+            <p className="text-slate-500 dark:text-slate-400 text-xs">
+              欢迎访问中南创发集团官方网址：
+              <a href="http://www.cn-innovations.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">
+                http://www.cn-innovations.com
+              </a>
+            </p>
+          </div>
         </section>
 
         {/* Company cards — click navigates to /companies/:id (positions live there) */}
