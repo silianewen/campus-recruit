@@ -104,10 +104,7 @@ export default function Home() {
                       <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{c.name}</h3>
                       <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto">{count} 个岗位</span>
                     </div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 italic line-clamp-3 mb-2 min-h-12">
-                      {c.description?.trim() ? c.description : '公司简介待补充'}
-                    </p>
-                    <div className="text-sm text-blue-600 dark:text-blue-400">查看岗位 →</div>
+                    <div className="text-sm text-blue-600 dark:text-blue-400 mt-2">查看岗位 →</div>
                   </button>
                 )
               })}
