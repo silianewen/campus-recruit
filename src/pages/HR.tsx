@@ -88,12 +88,11 @@ export default function HR() {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col px-4">
         {/* Top bar: logo (left) · 返回投递平台 + theme toggle (right) */}
         <div className="w-full px-4 py-3 flex items-center justify-between">
-          <div
-            className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold text-xl shadow-md"
-            aria-label="中南创发集团 logo 占位"
-          >
-            中
-          </div>
+          <img
+            src="/logos/group.png"
+            alt="中南创发集团"
+            className="h-12 w-auto"
+          />
           <div className="flex items-center gap-2">
             <button
               onClick={() => navigate('/')}
@@ -152,12 +151,11 @@ export default function HR() {
 
         {/* Top bar: logo (left) · 返回投递平台 + theme toggle + logout (right) */}
         <div className="flex items-center justify-between mb-6">
-          <div
-            className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold text-2xl shadow-md"
-            aria-label="中南创发集团 logo 占位"
-          >
-            中
-          </div>
+          <img
+            src="/logos/group.png"
+            alt="中南创发集团"
+            className="h-14 w-auto"
+          />
           <div className="flex items-center gap-2">
             <button
               onClick={() => navigate('/')}

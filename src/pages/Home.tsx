@@ -31,12 +31,11 @@ export default function Home() {
 
         {/* Top bar — logo (top-left) · theme toggle (top-right) */}
         <div className="flex items-center justify-between mb-6">
-          <div
-            className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white font-bold text-2xl shadow-md"
-            aria-label="中南创发集团 logo 占位"
-          >
-            中
-          </div>
+          <img
+            src="/logos/group.png"
+            alt="中南创发集团"
+            className="h-14 w-auto"
+          />
           <ThemeToggle />
         </div>
 
@@ -100,9 +99,17 @@ export default function Home() {
                     className="text-left bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500 transition"
                   >
                     <div className="flex items-center gap-3 mb-2">
-                      <span className={`inline-block w-2 h-2 rounded-full ${companyColor(c.id)}`} />
-                      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{c.name}</h3>
-                      <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto">{count} 个岗位</span>
+                      {c.logo_url ? (
+                        <img
+                          src={c.logo_url}
+                          alt={c.name}
+                          className="h-12 w-12 object-contain rounded-lg bg-slate-50 dark:bg-slate-700 p-1 flex-shrink-0"
+                        />
+                      ) : (
+                        <span className={`inline-block w-2 h-2 rounded-full ${companyColor(c.id)}`} />
+                      )}
+                      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 flex-1 min-w-0">{c.name}</h3>
+                      <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto flex-shrink-0">{count} 个岗位</span>
                     </div>
                     <div className="text-sm text-blue-600 dark:text-blue-400 mt-2">查看岗位 →</div>
                   </button>
