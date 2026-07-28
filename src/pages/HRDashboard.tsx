@@ -113,13 +113,24 @@ export default function HRDashboard() {
   // Aggregations
   // -------------------------------------------------------------------------
 
-  // 1. Per-position counts → 投递数 by position
-  //    For company group: positions = own; for admin: positions = all.
-  const positionCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const p of positions) counts[p.id] = 0
-    for (const r of rows) counts[r.position_id] = (counts[r.position_id] ?? 0) + 1
-    return counts
+  // 1. Per-position counts (投递数 / 约面数 / offer 数) for the multi-series
+  //    bar chart. For company group: positions = own; for admin: all.
+  const positionStats = useMemo(() => {
+    // total / scheduled / offered per position
+    const total: Record<string, number> = {}
+    const scheduled: Record<string, number> = {}
+    const offered: Record<string, number> = {}
+    for (const p of positions) { total[p.id] = 0; scheduled[p.id] = 0; offered[p.id] = 0 }
+    for (const r of rows) {
+      total[r.position_id] = (total[r.position_id] ?? 0) + 1
+      if (r.status === 'interview_scheduled') {
+        scheduled[r.position_id] = (scheduled[r.position_id] ?? 0) + 1
+      }
+      if (r.status === 'offered') {
+        offered[r.position_id] = (offered[r.position_id] ?? 0) + 1
+      }
+    }
+    return { total, scheduled, offered }
   }, [rows, positions])
 
   // Positions grouped by company for the bar chart — labels show `短公司名 · 职位名`
@@ -129,14 +140,12 @@ export default function HRDashboard() {
       const idx = posId.indexOf('-')
       return idx > 0 ? posId.slice(0, idx) : 'other'
     }
-    // Group
-    const groupMap: Record<string, { position: PositionRow; count: number }[]> = {}
+    const groupMap: Record<string, PositionRow[]> = {}
     for (const p of positions) {
       const cid = getCompanyId(p.id)
       if (!groupMap[cid]) groupMap[cid] = []
-      groupMap[cid].push({ position: p, count: positionCounts[p.id] ?? 0 })
+      groupMap[cid].push(p)
     }
-    // Sort companies by their order in the companies array
     const companyOrder = companies.reduce<Record<string, number>>((m, c, i) => {
       m[c.id] = i
       return m
@@ -144,18 +153,21 @@ export default function HRDashboard() {
     const sortedEntries = Object.entries(groupMap).sort(
       ([a], [b]) => (companyOrder[a] ?? 999) - (companyOrder[b] ?? 999),
     )
-    // Build label + value arrays; within each company, sort by position title
     const labels: string[] = []
-    const values: number[] = []
+    const total: number[] = []
+    const scheduled: number[] = []
+    const offered: number[] = []
     for (const [cid, items] of sortedEntries) {
-      items.sort((a, b) => a.position.title.localeCompare(b.position.title, 'zh-CN'))
-      for (const { position, count } of items) {
-        labels.push(`${companyShortName(cid)} · ${position.title}`)
-        values.push(count)
+      items.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'))
+      for (const p of items) {
+        labels.push(`${companyShortName(cid)} · ${p.title}`)
+        total.push(positionStats.total[p.id] ?? 0)
+        scheduled.push(positionStats.scheduled[p.id] ?? 0)
+        offered.push(positionStats.offered[p.id] ?? 0)
       }
     }
-    return { labels, values }
-  }, [positions, positionCounts, companies])
+    return { labels, total, scheduled, offered }
+  }, [positions, positionStats, companies])
 
   // 3. Per-company counts → pie of 公司分布 (admin / default only;
   //    company group always shows 100% self)
@@ -205,13 +217,18 @@ export default function HRDashboard() {
   // -------------------------------------------------------------------------
   // ECharts options
   // -------------------------------------------------------------------------
-  // P9 horizontal bar — grouped by company so it scales to many positions.
-  // Long titles won't collide or get cut off (vertical bars do that on mobile).
+  // Multi-series horizontal bar: 投递数 / 约面数 / offer 数 per position.
+  // Grouped by company in the labels; long titles won't collide on mobile.
   const positionBarOption = useMemo(() => ({
     backgroundColor: 'transparent',
-    title: { text: '各职位投递数', left: 'center', textStyle: { fontSize: 14, color: isDark ? '#f1f5f9' : '#0f172a' } },
-    tooltip: { trigger: 'axis' as const },
-    grid: { left: 160, right: 50, top: 30, bottom: 30, containLabel: true },
+    title: { text: '各职位 投递 / 约面 / offer', left: 'center', textStyle: { fontSize: 14, color: isDark ? '#f1f5f9' : '#0f172a' } },
+    tooltip: { trigger: 'axis' as const, axisPointer: { type: 'shadow' as const } },
+    legend: {
+      data: ['投递数', '约面数', 'offer 数'],
+      bottom: 0,
+      textStyle: { color: isDark ? '#cbd5e1' : '#475569' },
+    },
+    grid: { left: 160, right: 50, top: 30, bottom: 40, containLabel: true },
     xAxis: {
       type: 'value' as const,
       minInterval: 1,
@@ -223,13 +240,30 @@ export default function HRDashboard() {
       axisLabel: { color: isDark ? '#cbd5e1' : '#475569', fontSize: 11 },
       inverse: true,
     },
-    series: [{
-      type: 'bar' as const,
-      data: positionsGrouped.values,
-      itemStyle: { color: colorPalette[0], borderRadius: [0, 4, 4, 0] },
-      label: { show: true, position: 'right' as const, color: isDark ? '#f1f5f9' : '#0f172a', fontSize: 11 },
-    }],
-  }), [positionsGrouped, isDark])
+    series: [
+      {
+        name: '投递数',
+        type: 'bar' as const,
+        data: positionsGrouped.total,
+        itemStyle: { color: colorPalette[0], borderRadius: [0, 4, 4, 0] },
+        label: { show: true, position: 'right' as const, color: isDark ? '#f1f5f9' : '#0f172a', fontSize: 11 },
+      },
+      {
+        name: '约面数',
+        type: 'bar' as const,
+        data: positionsGrouped.scheduled,
+        itemStyle: { color: colorPalette[1], borderRadius: [0, 4, 4, 0] },
+        label: { show: true, position: 'right' as const, color: isDark ? '#f1f5f9' : '#0f172a', fontSize: 11 },
+      },
+      {
+        name: 'offer 数',
+        type: 'bar' as const,
+        data: positionsGrouped.offered,
+        itemStyle: { color: colorPalette[2], borderRadius: [0, 4, 4, 0] },
+        label: { show: true, position: 'right' as const, color: isDark ? '#f1f5f9' : '#0f172a', fontSize: 11 },
+      },
+    ],
+  }), [positionsGrouped, isDark, colorPalette])
 
   // (P9: stacked bar chart removed; horizontal bar + 3 pies now)
 

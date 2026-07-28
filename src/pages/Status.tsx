@@ -79,6 +79,7 @@ export default function Status() {
           .select(`id, position_id, status, created_at, updated_at, company_id,
                    resume:resumes ( student_name, major, university, file_url )`)
           .eq('resumes.phone', p)
+          .neq('status', 'rejected')
           .order('created_at', { ascending: false }),
         supabase
           .from('personality_results')

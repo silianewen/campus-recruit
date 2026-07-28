@@ -224,7 +224,7 @@ export default function HRAdminUsers() {
             )}
             {users.map((u) => (
               <tr key={u.id} className="border-t border-slate-100 dark:border-slate-700">
-                <td className="px-3 py-2 font-mono">{u.username}</td>
+                <td className="px-3 py-2 font-mono text-slate-900 dark:text-slate-100">{u.username}</td>
                 <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{u.display_name ?? '—'}</td>
                 <td className="px-3 py-2">
                   <span className="text-slate-700 dark:text-slate-300">

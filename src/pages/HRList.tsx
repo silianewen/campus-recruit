@@ -7,10 +7,8 @@ import {
   fetchCompanies,
   fetchDuplicatePhones,
   fetchCrossCompanyContext,
-  insertNotification,
   type PositionRow,
   type CrossCompanyRow,
-  type NotificationInsert,
 } from '../lib/loaders'
 import { useAsync } from '../hooks/useAsync'
 import { companyColor, companyShortName } from '../lib/companies'
@@ -82,16 +80,6 @@ export default function HRList() {
   // originating company group; default-group also gets it).
   const [crossCtx, setCrossCtx] = useState<Record<string, CrossCompanyRow[]>>({})
 
-  // P1: send-notification modal state
-  const [notifTarget, setNotifTarget] = useState<SubmissionRow | null>(null)
-  const [notifTitle, setNotifTitle] = useState('面试通知')
-  const [notifContent, setNotifContent] = useState(
-    '同学你好，你投递的岗位已进入面试环节，请回复本消息确认可面试时间。',
-  )
-  const [notifType, setNotifType] = useState<NotificationInsert['type']>('interview_invite')
-  const [notifSending, setNotifSending] = useState(false)
-  const [notifResult, setNotifResult] = useState<{ ok: boolean; msg: string } | null>(null)
-
   // P5: per-row "下载" success flash
   const [downloadFlash, setDownloadFlash] = useState<Record<string, boolean>>({})
 
@@ -113,7 +101,6 @@ export default function HRList() {
   const auth = readAuth()
   const scope = auth?.scope ?? null
   const isReadOnly = scope?.kind === 'default'
-  const canSend = scope?.kind === 'admin' || scope?.kind === 'company'
 
   // P7: bulk selection + download + bulk status update
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -287,51 +274,6 @@ export default function HRList() {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)))
   }
 
-  // P1: send notification
-  const openNotifModal = (r: SubmissionRow) => {
-    if (!r.resume?.phone) return
-    setNotifTarget(r)
-    setNotifTitle('面试通知')
-    const companyName = r.company_id ? companyNameById[r.company_id] ?? r.company_id : ''
-    const posName = positionsById[r.position_id]?.title ?? r.position_id
-    setNotifContent(
-      `同学你好，你投递的 ${companyName ? companyName + ' · ' : ''}${posName} 岗位已进入面试环节，请回复本消息确认可面试时间。`,
-    )
-    setNotifType('interview_invite')
-    setNotifResult(null)
-  }
-  const closeNotifModal = () => {
-    setNotifTarget(null)
-    setNotifResult(null)
-  }
-  const sendNotif = async () => {
-    if (!notifTarget?.resume?.phone || !supabase) return
-    setNotifSending(true)
-    setNotifResult(null)
-    try {
-      await insertNotification({
-        phone: notifTarget.resume.phone,
-        title: notifTitle.trim() || '面试通知',
-        content: notifContent.trim(),
-        type: notifType,
-      })
-      setNotifResult({ ok: true, msg: '已发送 ✅' })
-      // Auto-flip status to 已约面 when sending an interview_invite
-      if (notifType === 'interview_invite' && notifTarget.status !== 'interview_scheduled') {
-        await supabase
-          .from('submissions')
-          .update({ status: 'interview_scheduled' })
-          .eq('id', notifTarget.id)
-        setRows((prev) => prev.map((r) => (r.id === notifTarget.id ? { ...r, status: 'interview_scheduled' } : r)))
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      setNotifResult({ ok: false, msg: '发送失败：' + msg })
-    } finally {
-      setNotifSending(false)
-    }
-  }
-
   // P3: CSV export
   const exportCsv = () => {
     if (filtered.length > CSV_ROW_CAP) {
@@ -448,11 +390,6 @@ export default function HRList() {
                     className="text-blue-600 dark:text-blue-400 hover:underline">
                     {downloadFlash[r.id] ? '已下载 ✓' : '下载'}
                   </a>
-                )}
-                {canSend && r.resume?.phone && (
-                  <button onClick={() => openNotifModal(r)} className="text-blue-600 dark:text-blue-400 hover:underline">
-                    通知
-                  </button>
                 )}
               </div>
             </div>
@@ -587,11 +524,6 @@ export default function HRList() {
                       {downloadFlash[r.id] ? '已下载 ✓' : '下载'}
                     </a>
                   )}
-                  {canSend && r.resume?.phone && (
-                    <button onClick={() => openNotifModal(r)} className="text-blue-600 dark:text-blue-400 hover:underline text-xs">
-                      通知
-                    </button>
-                  )}
                 </td>
               </tr>
             )
@@ -718,44 +650,6 @@ export default function HRList() {
 
       {renderCardList()}
       {renderTable()}
-
-      {/* Send notification modal (P1) */}
-      {notifTarget && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md p-6">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-1">发送通知</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-              收件人：{notifTarget.resume?.student_name}（{notifTarget.resume?.phone}）
-            </p>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">标题</label>
-            <input value={notifTitle} onChange={(e) => setNotifTitle(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg mb-3" />
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">类型</label>
-            <select value={notifType} onChange={(e) => setNotifType(e.target.value as NotificationInsert['type'])}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg mb-3">
-              <option value="interview_invite">面试邀请</option>
-              <option value="test_invite">测评邀请</option>
-              <option value="status_update">状态更新</option>
-            </select>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">内容</label>
-            <textarea value={notifContent} onChange={(e) => setNotifContent(e.target.value)} rows={4}
-              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded-lg mb-3" />
-            {notifResult && (
-              <p className={`text-sm mb-3 ${notifResult.ok ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                {notifResult.msg}
-              </p>
-            )}
-            <div className="flex justify-end gap-2">
-              <button onClick={closeNotifModal}
-                className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">取消</button>
-              <button onClick={() => void sendNotif()} disabled={notifSending}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-400 dark:disabled:bg-slate-700">
-                {notifSending ? '发送中…' : '发送'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </Page>
   )
 }
