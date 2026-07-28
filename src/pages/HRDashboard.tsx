@@ -49,6 +49,10 @@ export default function HRDashboard() {
   const navigate = useNavigate()
   const [rows, setRows] = useState<Row[]>([])
   const [loading, setLoading] = useState(false)
+  // Admin-only client-side company filter on the position bar chart.
+  // 'all' = every company; otherwise a specific company_id. Company-scoped
+  // users always see only their own company and don't get this filter UI.
+  const [companyFilter, setCompanyFilter] = useState<string>('all')
 
   // Track dark mode to refresh charts with new colors.
   const [, setDarkVersion] = useState(0)
@@ -103,6 +107,12 @@ export default function HRDashboard() {
     })()
   }, [navigate, scope])
 
+  // When the scope flips to a different company group, reset the admin's
+  // client-side company filter so it doesn't dangle on a now-invalid id.
+  useEffect(() => {
+    setCompanyFilter('all')
+  }, [scope?.kind, scopeCompanyId])
+
   useEffect(() => {
     if (typeof window === 'undefined') return
     const obs = new MutationObserver(() => setDarkVersion((v) => v + 1))
@@ -114,15 +124,34 @@ export default function HRDashboard() {
   // Aggregations
   // -------------------------------------------------------------------------
 
+  // Filtered rows — rows already respect scope (company group sees own only).
+  // Admin additionally applies the `companyFilter` to scope everything below.
+  const filteredRows = useMemo(() => {
+    if (scope?.kind === 'admin' && companyFilter !== 'all') {
+      return rows.filter((r) => r.company_id === companyFilter)
+    }
+    return rows
+  }, [rows, scope?.kind, companyFilter])
+
+  // Positions list also respects the filter — admin picking a company
+  // should only see that company's positions on the bar chart.
+  const filteredPositions = useMemo(() => {
+    if (scope?.kind === 'admin' && companyFilter !== 'all') {
+      return positions.filter((p) => p.id.startsWith(`${companyFilter}-`))
+    }
+    return positions
+  }, [positions, scope?.kind, companyFilter])
+
   // 1. Per-position counts (投递数 / 约面数 / offer 数) for the multi-series
-  //    bar chart. For company group: positions = own; for admin: all.
+  //    bar chart. For company group: positions = own; for admin: all (or the
+  //    filtered subset if a companyFilter is set).
   const positionStats = useMemo(() => {
     // total / scheduled / offered per position
     const total: Record<string, number> = {}
     const scheduled: Record<string, number> = {}
     const offered: Record<string, number> = {}
-    for (const p of positions) { total[p.id] = 0; scheduled[p.id] = 0; offered[p.id] = 0 }
-    for (const r of rows) {
+    for (const p of filteredPositions) { total[p.id] = 0; scheduled[p.id] = 0; offered[p.id] = 0 }
+    for (const r of filteredRows) {
       total[r.position_id] = (total[r.position_id] ?? 0) + 1
       if (r.status === 'interview_scheduled') {
         scheduled[r.position_id] = (scheduled[r.position_id] ?? 0) + 1
@@ -132,7 +161,7 @@ export default function HRDashboard() {
       }
     }
     return { total, scheduled, offered }
-  }, [rows, positions])
+  }, [filteredRows, filteredPositions])
 
   // Positions grouped by company for the bar chart — labels show `短公司名 · 职位名`
   // so the chart scales well when the number of positions grows.
@@ -142,7 +171,7 @@ export default function HRDashboard() {
       return idx > 0 ? posId.slice(0, idx) : 'other'
     }
     const groupMap: Record<string, PositionRow[]> = {}
-    for (const p of positions) {
+    for (const p of filteredPositions) {
       const cid = getCompanyId(p.id)
       if (!groupMap[cid]) groupMap[cid] = []
       groupMap[cid].push(p)
@@ -168,52 +197,60 @@ export default function HRDashboard() {
       }
     }
     return { labels, total, scheduled, offered }
-  }, [positions, positionStats, companies])
+  }, [filteredPositions, positionStats, companies])
 
   // 3. Per-company counts → pie of 公司分布 (admin / default only;
-  //    company group always shows 100% self)
+  //    company group always shows 100% self). Admin's companyFilter does
+  //    NOT collapse this pie to 100% — it shows only the filtered slice as
+  //    a single-company pie so HR can still see "which companies in this
+  //    filter have data" (which is just one when filtered).
   const companyCounts = useMemo(() => {
     if (scope?.kind === 'company') {
-      const cnt = rows.filter((r) => r.company_id === scope.companyId).length
+      const cnt = filteredRows.filter((r) => r.company_id === scope.companyId).length
       return { [scope.companyId]: cnt }
+    }
+    if (scope?.kind === 'admin' && companyFilter !== 'all') {
+      const cnt = filteredRows.filter((r) => r.company_id === companyFilter).length
+      return { [companyFilter]: cnt }
     }
     const counts: Record<string, number> = {}
     for (const c of companies) counts[c.id] = 0
-    for (const r of rows) {
+    for (const r of filteredRows) {
       if (r.company_id) counts[r.company_id] = (counts[r.company_id] ?? 0) + 1
     }
     return counts
-  }, [rows, companies, scope?.kind, scopeCompanyId])
+  }, [filteredRows, companies, scope?.kind, scopeCompanyId, companyFilter])
 
-  // 4. Per-degree counts → pie of 学历分布 (always scope-scoped; rows
-  //    are already filtered to the user's company when scope=company)
+  // 4. Per-degree counts → pie of 学历分布 (scope-scoped; admin can further
+  //    narrow via companyFilter).
   const degreeCounts = useMemo(() => {
     const counts: Record<string, number> = {}
-    for (const r of rows) {
+    for (const r of filteredRows) {
       const d = r.resume?.degree?.trim() ?? '未填'
       counts[d] = (counts[d] ?? 0) + 1
     }
     return counts
-  }, [rows])
+  }, [filteredRows])
 
   // 5. Top-10 majors
   const majorCounts = useMemo(() => {
     const counts: Record<string, number> = {}
-    for (const r of rows) {
+    for (const r of filteredRows) {
       const m = r.resume?.major?.trim()
       if (!m) continue
       counts[m] = (counts[m] ?? 0) + 1
     }
     return Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 10)
-  }, [rows])
+  }, [filteredRows])
 
   const colorPalette = isDark
     ? ['#60a5fa', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#22d3ee', '#fb7185', '#facc15']
     : ['#2563eb', '#10b981', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#eab308']
 
-  // Chart heights — smaller on mobile (P4).
+  // Chart heights — smaller on mobile (P4). Pies get a bigger band than
+  // before so title + donut + legend all fit without overlap.
   const bigHeight = typeof window !== 'undefined' && window.innerWidth < 640 ? 240 : 360
-  const smallHeight = typeof window !== 'undefined' && window.innerWidth < 640 ? 220 : 300
+  const smallHeight = typeof window !== 'undefined' && window.innerWidth < 640 ? 280 : 360
 
   // -------------------------------------------------------------------------
   // ECharts options
@@ -288,13 +325,25 @@ export default function HRDashboard() {
         },
       },
     ],
-  }), [positionsGrouped, isDark, colorPalette]) as unknown as EChartsOption
+  }), [positionsGrouped, isDark, colorPalette, companyFilter]) as unknown as EChartsOption
 
   // (P9: stacked bar chart removed; horizontal bar + 3 pies now)
 
-  const companyPieOption = useMemo(() => {
-    const data = scope?.kind === 'company'
-      ? [{ name: companyShortName(scope.companyId) || scope.companyId, value: companyCounts[scope.companyId] ?? 0, itemStyle: { color: colorPalette[0] } }]
+  // Shared pie layout — title sits at the very top with its own band, the
+// donut is centered in the remaining space, legend floats below. Labels
+// are shown INSIDE each segment so the name + count are visible without
+// hovering. Adjust heights below if more legend rows are expected.
+const PIE_TITLE_STYLE = { fontSize: 14, color: isDark ? '#f1f5f9' : '#0f172a', fontWeight: 'bold' as const }
+
+const companyPieOption = useMemo(() => {
+    const singleCompanyId =
+      scope?.kind === 'company'
+        ? scope.companyId
+        : scope?.kind === 'admin' && companyFilter !== 'all'
+          ? companyFilter
+          : null
+    const data = singleCompanyId
+      ? [{ name: companyShortName(singleCompanyId) || singleCompanyId, value: companyCounts[singleCompanyId] ?? 0, itemStyle: { color: colorPalette[0] } }]
       : companies.map((c) => ({
           name: companyShortName(c.id) || c.name,
           value: companyCounts[c.id] ?? 0,
@@ -302,55 +351,97 @@ export default function HRDashboard() {
         }))
     return {
       backgroundColor: 'transparent',
-      title: { text: '按公司', left: 'center', textStyle: { fontSize: 14, color: isDark ? '#f1f5f9' : '#0f172a' } },
+      title: { text: '按公司', left: 'center', top: 4, textStyle: PIE_TITLE_STYLE },
       tooltip: { trigger: 'item' as const, formatter: '{b}: {c} ({d}%)' },
-      legend: { bottom: 0, type: 'scroll' as const, textStyle: { color: isDark ? '#cbd5e1' : '#475569' } },
+      legend: { bottom: 4, type: 'scroll' as const, textStyle: { color: isDark ? '#cbd5e1' : '#475569', fontSize: 11 } },
+      grid: { top: 36, bottom: 36, left: 8, right: 8 },
       series: [{
         type: 'pie' as const,
-        radius: ['40%', '70%'],
-        center: ['50%', '45%'],
+        radius: ['35%', '60%'],
+        center: ['50%', '52%'],
+        avoidLabelOverlap: true,
+        label: {
+          show: true,
+          position: 'inside' as const,
+          formatter: ((p: any) => `${p.name}\n${p.value}`) as any,
+          color: '#ffffff',
+          fontSize: 11,
+          fontWeight: 'bold' as const,
+        },
+        labelLine: { show: false },
         data,
       }],
-    }
-  }, [companies, companyCounts, isDark, scope?.kind, scopeCompanyId])
+    } as unknown as EChartsOption
+  }, [companies, companyCounts, isDark, scope?.kind, scopeCompanyId, companyFilter, colorPalette])
 
   const degreePieOption = useMemo(() => ({
     backgroundColor: 'transparent',
-    title: { text: '按学历', left: 'center', textStyle: { fontSize: 14, color: isDark ? '#f1f5f9' : '#0f172a' } },
+    title: { text: '按学历', left: 'center', top: 4, textStyle: PIE_TITLE_STYLE },
     tooltip: { trigger: 'item' as const, formatter: '{b}: {c} ({d}%)' },
-    legend: { bottom: 0, type: 'scroll' as const, textStyle: { color: isDark ? '#cbd5e1' : '#475569' } },
+    legend: { bottom: 4, type: 'scroll' as const, textStyle: { color: isDark ? '#cbd5e1' : '#475569', fontSize: 11 } },
+    grid: { top: 36, bottom: 36, left: 8, right: 8 },
     series: [{
       type: 'pie' as const,
-      radius: ['40%', '70%'],
-      center: ['50%', '45%'],
+      radius: ['35%', '60%'],
+      center: ['50%', '52%'],
+      avoidLabelOverlap: true,
+      label: {
+        show: true,
+        position: 'inside' as const,
+        formatter: ((p: any) => `${p.name}\n${p.value}`) as any,
+        color: '#ffffff',
+        fontSize: 11,
+        fontWeight: 'bold' as const,
+      },
+      labelLine: { show: false },
       data: Object.entries(degreeCounts).map(([name, value], i) => ({
         name,
         value,
         itemStyle: { color: colorPalette[i % colorPalette.length] },
       })),
     }],
-  }), [degreeCounts, isDark])
+  }) as unknown as EChartsOption, [degreeCounts, isDark, colorPalette])
 
   const majorsPieOption = useMemo(() => ({
     backgroundColor: 'transparent',
-    title: { text: '专业 Top 10', left: 'center', textStyle: { fontSize: 14, color: isDark ? '#f1f5f9' : '#0f172a' } },
+    title: { text: '专业 Top 10', left: 'center', top: 4, textStyle: PIE_TITLE_STYLE },
     tooltip: { trigger: 'item' as const, formatter: '{b}: {c} ({d}%)' },
-    legend: { bottom: 0, type: 'scroll' as const, textStyle: { color: isDark ? '#cbd5e1' : '#475569' } },
+    legend: { bottom: 4, type: 'scroll' as const, textStyle: { color: isDark ? '#cbd5e1' : '#475569', fontSize: 11 } },
+    grid: { top: 36, bottom: 36, left: 8, right: 8 },
     series: [{
       type: 'pie' as const,
-      radius: ['40%', '70%'],
-      center: ['50%', '45%'],
+      radius: ['35%', '60%'],
+      center: ['50%', '52%'],
+      avoidLabelOverlap: true,
+      label: {
+        show: true,
+        position: 'inside' as const,
+        formatter: ((p: any) => {
+          // Inside label only for big-enough slices; small slices fall back
+          // to the legend below.
+          if (p.percent < 6) return ''
+          return `${p.name}\n${p.value}`
+        }) as any,
+        color: '#ffffff',
+        fontSize: 11,
+        fontWeight: 'bold' as const,
+      },
+      labelLine: { show: false },
       data: majorCounts.map(([name, value]) => ({ name, value })),
     }],
-  }), [majorCounts, isDark])
+  }) as unknown as EChartsOption, [majorCounts, isDark])
 
-  const total = rows.length
-  const scheduledCount = rows.filter((r) => r.status === 'interview_scheduled').length
-  const offeredCount = rows.filter((r) => r.status === 'offered').length
+  const total = filteredRows.length
+  const scheduledCount = filteredRows.filter((r) => r.status === 'interview_scheduled').length
+  const offeredCount = filteredRows.filter((r) => r.status === 'offered').length
   const dupePhones = dupePhonesAsync.data ?? []
-  const duplicateSubmissionCount = rows.reduce((acc, r) => acc + (r.resume?.phone && dupePhones.includes(r.resume.phone) ? 1 : 0), 0)
+  const duplicateSubmissionCount = filteredRows.reduce((acc, r) => acc + (r.resume?.phone && dupePhones.includes(r.resume.phone) ? 1 : 0), 0)
   const duplicatePhonesCount = dupePhones.length
-  const companyCountLabel = scope?.kind === 'company' ? '1' : companies.length.toString()
+  // Company KPI: when admin is filtering to one company, show "1"; otherwise
+  // total registered companies.
+  const companyCountLabel = scope?.kind === 'company' || companyFilter !== 'all'
+    ? '1'
+    : companies.length.toString()
 
   return (
     <Page title="数据看板">
@@ -386,6 +477,26 @@ export default function HRDashboard() {
       {!loading && total > 0 && (
         <div className="grid grid-cols-1 gap-6">
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                各职位投递数 / 约面数 / offer 数（堆叠条形图）
+              </div>
+              {scope?.kind === 'admin' && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">公司筛选：</span>
+                  <select
+                    value={companyFilter}
+                    onChange={(e) => setCompanyFilter(e.target.value)}
+                    className="px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded-lg"
+                  >
+                    <option value="all">全部</option>
+                    {(companiesAsync.data ?? []).map((c) => (
+                      <option key={c.id} value={c.id}>{companyShortName(c.id) || c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
             <EChart option={positionBarOption} height={Math.max(bigHeight, positionsGrouped.labels.length * 36 + 60)} />
           </div>
           {/* P4: 1 col on mobile, 3 on desktop */}
