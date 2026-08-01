@@ -6,6 +6,7 @@
 // See: openspec/changes/post-mvp-cleanup-and-dark-theme/specs/data-loaders/spec.md
 
 import { supabase } from './supabase'
+import { registerCompanyShortNames } from './companies'
 import type { Company, HrGroup, HrUser, SkillQuestion } from './types'
 
 export interface PositionRow {
@@ -20,10 +21,12 @@ export async function fetchCompanies(): Promise<Company[]> {
   if (!supabase) return []
   const { data, error } = await supabase
     .from('companies')
-    .select('id, name, description, logo_url')
+    .select('id, name, description, logo_url, short_name')
     .order('id', { ascending: true })
   if (error) throw error
-  return (data ?? []) as Company[]
+  const rows = (data ?? []) as Company[]
+  registerCompanyShortNames(rows)
+  return rows
 }
 
 export async function fetchAllPositions(): Promise<PositionRow[]> {
@@ -92,16 +95,19 @@ export async function fetchCompanyName(companyId: string): Promise<string | null
   return (data?.name as string | undefined) ?? null
 }
 
-/** Full company record (id, name, description, logo_url). Used by CompanyDetail. */
+/** Full company record (id, name, description, logo_url, short_name).
+ *  Used by CompanyDetail. */
 export async function fetchCompany(companyId: string): Promise<Company | null> {
   if (!supabase) return null
   const { data, error } = await supabase
     .from('companies')
-    .select('id, name, description, logo_url')
+    .select('id, name, description, logo_url, short_name')
     .eq('id', companyId)
     .maybeSingle()
   if (error) throw error
-  return (data ?? null) as Company | null
+  const row = (data ?? null) as Company | null
+  if (row) registerCompanyShortNames([row])
+  return row
 }
 
 /**

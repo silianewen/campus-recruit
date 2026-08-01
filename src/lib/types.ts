@@ -30,6 +30,11 @@ export interface Company {
   name: string
   description?: string
   logo_url?: string
+  // Optional short display name (e.g. "昶联"). Falls back to the legacy
+  // SHORT_NAMES map in src/lib/companies.ts when null. Driven by the
+  // `companies.short_name` column (migration 0013) — change in DB, no
+  // source edit needed.
+  short_name?: string | null
 }
 
 export type SubmissionStatus =
