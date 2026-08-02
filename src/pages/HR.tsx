@@ -88,11 +88,7 @@ export default function HR() {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col px-4">
         {/* Top bar: logo (left) · 返回投递平台 + theme toggle (right) */}
         <div className="w-full px-4 py-3 flex items-center justify-between">
-          <img
-            src="/logos/group.png"
-            alt="中南创发集团"
-            className="h-12 w-auto"
-          />
+          <div className="w-12 h-12" aria-hidden />
           <div className="flex items-center gap-2">
             <button
               onClick={() => navigate('/')}
@@ -106,7 +102,7 @@ export default function HR() {
 
         <div className="text-center mt-8 mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100">
-            中南创发校招HR管理后台
+            XX校招HR管理后台
           </h1>
         </div>
 
@@ -151,11 +147,7 @@ export default function HR() {
 
         {/* Top bar: logo (left) · 返回投递平台 + theme toggle + logout (right) */}
         <div className="flex items-center justify-between mb-6">
-          <img
-            src="/logos/group.png"
-            alt="中南创发集团"
-            className="h-14 w-auto"
-          />
+          <div className="w-14 h-14" aria-hidden />
           <div className="flex items-center gap-2">
             <button
               onClick={() => navigate('/')}
@@ -175,8 +167,7 @@ export default function HR() {
 
         {/* Centered title */}
         <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 text-center mb-1">
-          中南创发校招HR管理后台
-        </h1>
+                  </h1>
         <p className="text-base text-slate-500 dark:text-slate-400 text-center mb-1">
           简历投递 · 通知 · 数据看板
         </p>
@@ -195,7 +186,7 @@ export default function HR() {
           <div className="flex-1 text-center sm:text-left">
             <h3 className="font-semibold text-slate-900 dark:text-slate-100 mb-1">📲 学生投递页面二维码</h3>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              学生扫码 → 进入中南创发校招投递平台 → 选择公司/岗位 → 投递简历。
+              学生扫码 → 进入XX校招投递平台 → 选择公司/岗位 → 投递简历。
             </p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 break-all">二维码内容：{homeUrl}</p>
           </div>
