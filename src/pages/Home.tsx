@@ -45,6 +45,15 @@ export default function Home() {
           </p>
         </div>
 
+        {/* 集团简介模块 — 内容以后补充 */}
+        <section className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 mb-6">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2 flex items-center gap-2">
+            <span className="inline-block w-1.5 h-4 rounded-sm bg-blue-500" />
+            集团简介
+          </h3>
+          <p className="text-sm text-slate-500 dark:text-slate-400 italic">集团简介待补充</p>
+        </section>
+
         {/* Company cards — click navigates to /companies/:id (positions live there) */}
         <AsyncView
           data={companiesAsync.data}
