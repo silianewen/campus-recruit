@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom'
 import { fetchCompanies, fetchAllPositions, fetchGroupIntro } from '../lib/loaders'
 import { useAsync } from '../hooks/useAsync'
 import { AsyncView } from '../components/AsyncView'
-import { companyColor } from '../lib/companies'
 import { ThemeToggle } from '../components/ThemeToggle'
 
 export default function Home() {
@@ -32,7 +31,22 @@ export default function Home() {
 
         {/* Top bar — logo (top-left) · theme toggle (top-right) */}
         <div className="flex items-center justify-between mb-6">
-          <div className="w-14 h-14" aria-hidden />
+          <img
+            src="/logos/group.png"
+            alt="集团 logo"
+            className="h-14 w-auto"
+            onError={(e) => {
+              // Until the user uploads a real logo, fall back to the dashed
+              // placeholder so the slot stays reserved.
+              const el = e.currentTarget as HTMLImageElement
+              el.style.display = 'none'
+              const ph = document.createElement('div')
+              ph.setAttribute('aria-label', '集团 logo 占位')
+              ph.className =
+                'h-14 w-14 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-700/30'
+              el.parentElement?.appendChild(ph)
+            }}
+          />
           <ThemeToggle />
         </div>
 
@@ -86,7 +100,18 @@ export default function Home() {
                     className="text-left bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-500 transition"
                   >
                     <div className="flex items-center gap-3 mb-2">
-                      <span className={`inline-block w-2 h-2 rounded-full ${companyColor(c.id)}`} />
+                      {c.logo_url ? (
+                        <img
+                          src={c.logo_url}
+                          alt={c.name}
+                          className="h-12 w-12 object-contain rounded-lg bg-slate-50 dark:bg-slate-700 p-1 flex-shrink-0"
+                        />
+                      ) : (
+                        <div
+                          aria-label="公司 logo 占位"
+                          className="h-12 w-12 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-700/30 flex-shrink-0"
+                        />
+                      )}
                       <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 flex-1 min-w-0">{c.name}</h3>
                       <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto flex-shrink-0">{count} 个岗位</span>
                     </div>

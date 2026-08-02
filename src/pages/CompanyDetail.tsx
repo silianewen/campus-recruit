@@ -67,6 +67,18 @@ export default function CompanyDetail() {
         {(c) => (
           <section className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 mb-6">
             <div className="flex items-start gap-4">
+              {c.logo_url ? (
+                <img
+                  src={c.logo_url}
+                  alt={c.name}
+                  className="w-20 h-20 object-contain rounded-xl bg-slate-50 dark:bg-slate-700 p-2 flex-shrink-0"
+                />
+              ) : (
+                <div
+                  aria-label="公司 logo 占位"
+                  className="w-20 h-20 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-700/30 flex-shrink-0"
+                />
+              )}
               <div className="flex-1 min-w-0">
                 <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                   <span className={`inline-block w-2 h-2 rounded-full ${companyColor(c.id)}`} />
