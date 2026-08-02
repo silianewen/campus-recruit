@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { supabase } from '../lib/supabase'
 import { isPositionId } from '../lib/positions'
@@ -10,7 +10,7 @@ import { AsyncView } from '../components/AsyncView'
 import type { Submission } from '../lib/types'
 import { extractErrorMessage } from '../lib/errors'
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10 MB
+const MAX_FILE_BYTES = 4 * 1024 * 1024 // 4 MB
 // Only PDF accepted (per HR spec — Word files not allowed in this build).
 const ACCEPTED_TYPES = ['application/pdf']
 
@@ -31,6 +31,7 @@ export default function Upload() {
   const [file, setFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [agreed, setAgreed] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const companyAsync = useAsync(() => companyId ? fetchCompanyName(companyId) : Promise.resolve(null), [companyId])
@@ -42,7 +43,7 @@ export default function Upload() {
     setError(null)
     if (!f) { setFile(null); return }
     if (f.size > MAX_FILE_BYTES) {
-      setError(`文件超过 10MB（当前 ${(f.size / 1024 / 1024).toFixed(1)} MB）`)
+      setError(`文件超过 4MB（当前 ${(f.size / 1024 / 1024).toFixed(1)} MB）`)
       return
     }
     if (!ACCEPTED_TYPES.includes(f.type)) {
@@ -66,6 +67,9 @@ export default function Upload() {
     if (!file) { setError('请选择简历文件'); return }
     if (!/^1[3-9]\d{9}$/.test(phone.trim())) {
       setError('手机号格式不正确'); return
+    }
+    if (!agreed) {
+      setError('请先阅读并勾选同意《隐私政策》'); return
     }
 
     setSubmitting(true)
@@ -235,7 +239,7 @@ export default function Upload() {
               <option value="其他">其他</option>
             </select>
           </Field>
-          <Field label="简历文件 (仅 PDF 格式, ≤10MB)" required>
+          <Field label="简历文件 (仅 PDF 格式, ≤4MB)" required>
             <input
               ref={fileInputRef} type="file" required
               accept=".pdf,application/pdf"
@@ -245,6 +249,26 @@ export default function Upload() {
             {file && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">已选：{file.name}（{(file.size / 1024).toFixed(0)} KB）</p>}
           </Field>
 
+          <label className="flex items-start gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="mt-0.5 w-4 h-4 flex-shrink-0"
+            />
+            <span className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+              我已阅读并同意
+              <Link
+                to="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 hover:underline mx-1"
+              >
+                《隐私政策》
+              </Link>
+            </span>
+          </label>
+
           {error && (
             <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-2 rounded-lg text-sm">
               {error}
@@ -252,7 +276,7 @@ export default function Upload() {
           )}
 
           <button
-            type="submit" disabled={submitting}
+            type="submit" disabled={submitting || !agreed}
             className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 disabled:bg-slate-400 dark:disabled:bg-slate-700 disabled:cursor-not-allowed"
           >
             {submitting ? '提交中…' : '提交投递'}

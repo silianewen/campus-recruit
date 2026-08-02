@@ -10,6 +10,7 @@ import HRDashboard from './pages/HRDashboard'
 import Status from './pages/Status'
 import Personality from './pages/Personality'
 import SkillTest from './pages/SkillTest'
+import Privacy from './pages/Privacy'
 import { ConfigBanner } from './components/ConfigBanner'
 
 // HRAdminUsers stays lazy — only used by admins, not on the hot path.
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/personality" element={<Personality />} />
           <Route path="/skill-test" element={<SkillTest />} />
           <Route path="/skill-test/:positionId" element={<SkillTest />} />
+          <Route path="/privacy" element={<Privacy />} />
 
           {/* HR */}
           <Route path="/hr" element={<HR />} />
