@@ -49,3 +49,14 @@ dist-ssr
 # exists when the user drops their replacement logos in. (Folder-only
 # entries aren't tracked by git; the .gitkeep below handles it.)
 
+# Empty placeholder files that snuck into earlier commits. Both were
+# accidentally added with 0 bytes; the real content lives elsewhere.
+# If you ever need a placeholder scratch file, name it `.scratch.txt`
+# or similar so it stays out of git.
+/companies_code.txt
+/requirements.txt
+
+# Local Vite dev-server artifacts (Vite occasionally writes here when
+# it can't place a file at its destination).
+/.vite/
+
