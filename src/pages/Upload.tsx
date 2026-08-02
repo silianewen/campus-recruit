@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { supabase } from '../lib/supabase'
 import { isPositionId } from '../lib/positions'
@@ -7,6 +7,7 @@ import { isCompanyId } from '../lib/companies'
 import { fetchCompanyName, fetchPosition, type PositionRow } from '../lib/loaders'
 import { useAsync } from '../hooks/useAsync'
 import { AsyncView } from '../components/AsyncView'
+import { PrivacyModal } from './Privacy'
 import type { Submission } from '../lib/types'
 import { extractErrorMessage } from '../lib/errors'
 
@@ -32,6 +33,7 @@ export default function Upload() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [agreed, setAgreed] = useState(false)
+  const [privacyOpen, setPrivacyOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const companyAsync = useAsync(() => companyId ? fetchCompanyName(companyId) : Promise.resolve(null), [companyId])
@@ -258,14 +260,13 @@ export default function Upload() {
             />
             <span className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
               我已阅读并同意
-              <Link
-                to="/privacy"
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => setPrivacyOpen(true)}
                 className="text-blue-600 dark:text-blue-400 hover:underline mx-1"
               >
                 《隐私政策》
-              </Link>
+              </button>
             </span>
           </label>
 
@@ -284,6 +285,8 @@ export default function Upload() {
           <p className="text-xs text-slate-400 dark:text-slate-500 text-center">
             公司：<code>{companyId}</code> · 岗位：<code>{positionId}</code> · 用于本次投递
           </p>
+
+          <PrivacyModal open={privacyOpen} onClose={() => setPrivacyOpen(false)} />
         </form>
       </div>
         )}

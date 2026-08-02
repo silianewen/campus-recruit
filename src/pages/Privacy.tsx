@@ -1,27 +1,30 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Page } from '../components/Page'
 import { supabase } from '../lib/supabase'
 import { useAsync } from '../hooks/useAsync'
 
 /**
- * Privacy Policy page.
+ * Privacy Policy.
+ *
+ * Two modes:
+ *  1. <Privacy /> as a page — render the content inside <Page>. Used at
+ *     route /privacy if anyone deep-links there.
+ *  2. <PrivacyModal open onClose /> — floating overlay on the current
+ *     page (used by Upload so the form keeps state when the user comes
+ *     back). Renders via portal to document.body, supports close on
+ *     backdrop click, ESC, and the × button. Scroll is locked while
+ *     open.
  *
  * Content is DB-driven: site_content.privacy_policy (TEXT, see migration
- * 0017). When the column is empty the page shows a placeholder so the
- * route exists for the user to point to without forcing them to ship the
- * legal text on day one. The student Upload page links to /privacy
- * (`target="_blank"`) — opening in a new tab means the upload form
- * keeps its state when they come back.
+ * 0017). Empty value renders a placeholder card explaining the admin
+ * hasn't shipped the policy yet.
  *
  * To populate:
  *   UPDATE site_content
  *      SET privacy_policy = '你的完整隐私政策正文…'
  *    WHERE id = 'singleton';
- *
- * Plain-text: blank lines render as paragraph breaks (CSS
- * `whitespace-pre-wrap`). Add bold/links later if needed; for an MVP,
- * plain text is fine.
  */
 
 async function fetchPrivacyPolicy(): Promise<string | null> {
@@ -37,18 +40,106 @@ async function fetchPrivacyPolicy(): Promise<string | null> {
   return raw
 }
 
-export default function Privacy() {
-  const policyAsync = useAsync(fetchPrivacyPolicy, [])
-  const [now] = useState(() => new Date())
+function PrivacyBody({ body }: { body: string | null }) {
+  if (!body) {
+    return (
+      <div className="text-center py-10">
+        <div className="text-4xl mb-3">📄</div>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">
+          隐私政策待补充
+        </h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          平台管理员暂未发布隐私政策内容。
+        </p>
+      </div>
+    )
+  }
+  return (
+    <div className="text-sm leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
+      {body}
+    </div>
+  )
+}
 
-  const lastUpdated = useMemo(() => {
-    if (policyAsync.data) {
-      // Heuristic: just show the date the user opened the page if the DB
-      // didn't store a dedicated updated_at column for privacy policy.
-      return now.toLocaleDateString('zh-CN')
+export function PrivacyModal({
+  open,
+  onClose,
+}: {
+  open: boolean
+  onClose: () => void
+}) {
+  const policyAsync = useAsync(fetchPrivacyPolicy, [open])
+
+  // Lock body scroll while the modal is open + close on ESC.
+  useEffect(() => {
+    if (!open) return
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
     }
-    return ''
-  }, [policyAsync.data, now])
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = prevOverflow
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [open, onClose])
+
+  if (!open) return null
+
+  const modal = (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="隐私政策"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    >
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/40"
+        onClick={onClose}
+      />
+      {/* Panel */}
+      <div
+        className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 w-full max-w-2xl max-h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+            隐私政策
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="关闭"
+            className="w-8 h-8 flex items-center justify-center rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 text-xl leading-none"
+          >
+            ×
+          </button>
+        </header>
+        <div className="px-6 py-5 overflow-y-auto">
+          {policyAsync.loading ? (
+            <p className="text-sm text-slate-400 dark:text-slate-500">加载中…</p>
+          ) : (
+            <PrivacyBody body={policyAsync.data ?? null} />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+
+  return createPortal(modal, document.body)
+}
+
+export default function Privacy() {
+  // Standalone /privacy route — render the same body inside <Page>.
+  const policyAsync = useAsync(fetchPrivacyPolicy, [])
+  const location = useLocation()
+  const [now] = useState(() => new Date())
+  const lastUpdated = useMemo(
+    () => (policyAsync.data ? now.toLocaleDateString('zh-CN') : ''),
+    [policyAsync.data, now],
+  )
 
   return (
     <Page title="隐私政策" backTo="/" backLabel="返回投递首页">
@@ -60,27 +151,30 @@ export default function Privacy() {
             <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
               最后更新：{lastUpdated}
             </p>
-            <div className="prose prose-slate dark:prose-invert max-w-none text-sm leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
-              {policyAsync.data}
-            </div>
+            <PrivacyBody body={policyAsync.data} />
+            {location.pathname !== '/upload' && (
+              <div className="mt-8 text-center">
+                <Link
+                  to="/"
+                  className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                >
+                  返回投递首页
+                </Link>
+              </div>
+            )}
           </>
         ) : (
-          <div className="text-center py-10">
-            <div className="text-4xl mb-3">📄</div>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">
-              隐私政策待补充
-            </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-              平台管理员暂未发布隐私政策内容。如需立即启用，请在
-              Supabase → site_content 表中设置 <code className="bg-slate-100 dark:bg-slate-700 px-1 rounded">privacy_policy</code> 字段。
-            </p>
-            <Link
-              to="/"
-              className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-            >
-              返回投递首页
-            </Link>
-          </div>
+          <>
+            <PrivacyBody body={null} />
+            <div className="mt-6 text-center">
+              <Link
+                to="/"
+                className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+              >
+                返回投递首页
+              </Link>
+            </div>
+          </>
         )}
       </div>
     </Page>
