@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { fetchCompanies, fetchAllPositions, fetchGroupIntro } from '../lib/loaders'
+import { fetchCompanies, fetchAllPositions, fetchGroupIntro, fetchGroupLogo } from '../lib/loaders'
 import { useAsync } from '../hooks/useAsync'
 import { AsyncView } from '../components/AsyncView'
 import { ThemeToggle } from '../components/ThemeToggle'
@@ -11,6 +11,7 @@ export default function Home() {
   const companiesAsync = useAsync(fetchCompanies, [])
   const allPositionsAsync = useAsync(fetchAllPositions, [])
   const groupIntroAsync = useAsync(fetchGroupIntro, [])
+  const groupLogoAsync = useAsync(fetchGroupLogo, [])
 
   // Count positions per company for the "X 个岗位" badge on each card.
   const positionCountByCompanyId = useMemo<Record<string, number>>(() => {
@@ -31,22 +32,18 @@ export default function Home() {
 
         {/* Top bar — logo (top-left) · theme toggle (top-right) */}
         <div className="flex items-center justify-between mb-6">
-          <img
-            src="/logos/group.png"
-            alt="集团 logo"
-            className="h-14 w-auto"
-            onError={(e) => {
-              // Until the user uploads a real logo, fall back to the dashed
-              // placeholder so the slot stays reserved.
-              const el = e.currentTarget as HTMLImageElement
-              el.style.display = 'none'
-              const ph = document.createElement('div')
-              ph.setAttribute('aria-label', '集团 logo 占位')
-              ph.className =
-                'h-14 w-14 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-700/30'
-              el.parentElement?.appendChild(ph)
-            }}
-          />
+          {groupLogoAsync.data ? (
+            <img
+              src={groupLogoAsync.data}
+              alt="集团 logo"
+              className="h-14 w-auto"
+            />
+          ) : (
+            <div
+              aria-label="集团 logo 占位"
+              className="h-14 w-14 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-700/30"
+            />
+          )}
           <ThemeToggle />
         </div>
 

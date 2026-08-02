@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { QrDownload } from '../components/QrDownload'
 import { hashPassword } from '../lib/crypto'
-import { loginHrUser, fetchHrGroups } from '../lib/loaders'
+import { loginHrUser, fetchHrGroups, fetchGroupLogo } from '../lib/loaders'
 import { useAsync } from '../hooks/useAsync'
 import type { HrScope, HrUser, HrGroup } from '../lib/types'
 
@@ -30,6 +30,7 @@ function deriveScope(_user: HrUser, group: HrGroup | null): HrScope {
 export default function HR() {
   const navigate = useNavigate()
   const groupsAsync = useAsync(fetchHrGroups, [])
+  const groupLogoAsync = useAsync(fetchGroupLogo, [])
   const [auth, setAuth] = useState<AuthRecord | null>(() => {
     try {
       const raw = sessionStorage.getItem(HR_AUTH_KEY)
@@ -88,20 +89,18 @@ export default function HR() {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col px-4">
         {/* Top bar: logo (left) · 返回投递平台 + theme toggle (right) */}
         <div className="w-full px-4 py-3 flex items-center justify-between">
-          <img
-            src="/logos/group.png"
-            alt="集团 logo"
-            className="h-12 w-auto"
-            onError={(e) => {
-              const el = e.currentTarget as HTMLImageElement
-              el.style.display = 'none'
-              const ph = document.createElement('div')
-              ph.setAttribute('aria-label', '集团 logo 占位')
-              ph.className =
-                'h-12 w-12 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-700/30'
-              el.parentElement?.appendChild(ph)
-            }}
-          />
+          {groupLogoAsync.data ? (
+            <img
+              src={groupLogoAsync.data}
+              alt="集团 logo"
+              className="h-12 w-auto"
+            />
+          ) : (
+            <div
+              aria-label="集团 logo 占位"
+              className="h-12 w-12 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-700/30"
+            />
+          )}
           <div className="flex items-center gap-2">
             <button
               onClick={() => navigate('/')}
@@ -160,20 +159,18 @@ export default function HR() {
 
         {/* Top bar: logo (left) · 返回投递平台 + theme toggle + logout (right) */}
         <div className="flex items-center justify-between mb-6">
-          <img
-            src="/logos/group.png"
-            alt="集团 logo"
-            className="h-14 w-auto"
-            onError={(e) => {
-              const el = e.currentTarget as HTMLImageElement
-              el.style.display = 'none'
-              const ph = document.createElement('div')
-              ph.setAttribute('aria-label', '集团 logo 占位')
-              ph.className =
-                'h-14 w-14 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-700/30'
-              el.parentElement?.appendChild(ph)
-            }}
-          />
+          {groupLogoAsync.data ? (
+            <img
+              src={groupLogoAsync.data}
+              alt="集团 logo"
+              className="h-14 w-auto"
+            />
+          ) : (
+            <div
+              aria-label="集团 logo 占位"
+              className="h-14 w-14 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 bg-slate-50/50 dark:bg-slate-700/30"
+            />
+          )}
           <div className="flex items-center gap-2">
             <button
               onClick={() => navigate('/')}

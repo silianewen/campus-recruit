@@ -103,6 +103,23 @@ export async function fetchGroupIntro(): Promise<string | null> {
   return raw
 }
 
+/**
+ * Group logo URL (DB-driven, migration 0016). Returns null when the URL
+ * is empty/missing — the UI then renders the dashed placeholder box.
+ */
+export async function fetchGroupLogo(): Promise<string | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase
+    .from('site_content')
+    .select('group_logo_url')
+    .eq('id', 'singleton')
+    .maybeSingle()
+  if (error) throw error
+  const raw = (data?.group_logo_url as string | null | undefined) ?? null
+  if (!raw || !raw.trim()) return null
+  return raw
+}
+
 export async function fetchCompanyName(companyId: string): Promise<string | null> {
   if (!supabase) return null
   const { data, error } = await supabase
