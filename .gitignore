@@ -40,3 +40,12 @@ dist-ssr
 /docs/.claude/
 /docs/openspec/
 
+# Stash for the 6 logo PNGs that were delivered with the original bundle
+# but the user wants to replace. When the user uploads new logos, drop them
+# back into public/logos/ and delete this folder.
+/.logo-backup/
+
+# Keep the public/logos/ folder itself under version control so the path
+# exists when the user drops their replacement logos in. (Folder-only
+# entries aren't tracked by git; the .gitkeep below handles it.)
+
