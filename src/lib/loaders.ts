@@ -84,6 +84,25 @@ export async function fetchPosition(positionId: string): Promise<PositionRow | n
   return (data ?? null) as PositionRow | null
 }
 
+/**
+ * Site-wide marketing copy (currently: 集团简介). Backed by the
+ * `site_content` table (singleton row, see migration 0015). Returns
+ * `null` if the row is missing or `group_intro` is empty — callers should
+ * fall back to the in-code placeholder text.
+ */
+export async function fetchGroupIntro(): Promise<string | null> {
+  if (!supabase) return null
+  const { data, error } = await supabase
+    .from('site_content')
+    .select('group_intro')
+    .eq('id', 'singleton')
+    .maybeSingle()
+  if (error) throw error
+  const raw = (data?.group_intro as string | null | undefined) ?? null
+  if (!raw || !raw.trim()) return null
+  return raw
+}
+
 export async function fetchCompanyName(companyId: string): Promise<string | null> {
   if (!supabase) return null
   const { data, error } = await supabase
