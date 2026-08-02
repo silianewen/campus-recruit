@@ -6,13 +6,13 @@ import Upload from './pages/Upload'
 import Success from './pages/Success'
 import HR from './pages/HR'
 import HRList from './pages/HRList'
+import HRDashboard from './pages/HRDashboard'
 import Status from './pages/Status'
 import Personality from './pages/Personality'
 import SkillTest from './pages/SkillTest'
 import { ConfigBanner } from './components/ConfigBanner'
 
-// HRDashboard embeds ECharts — lazy-load it to keep the main bundle small.
-const HRDashboard = lazy(() => import('./pages/HRDashboard'))
+// HRAdminUsers stays lazy — only used by admins, not on the hot path.
 const HRAdminUsers = lazy(() => import('./pages/HRAdminUsers'))
 
 function Loading() {

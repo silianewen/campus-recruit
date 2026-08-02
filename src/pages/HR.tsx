@@ -167,7 +167,8 @@ export default function HR() {
 
         {/* Centered title */}
         <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 text-center mb-1">
-                  </h1>
+          XX集团校招HR管理后台
+        </h1>
         <p className="text-base text-slate-500 dark:text-slate-400 text-center mb-1">
           简历投递 · 通知 · 数据看板
         </p>
